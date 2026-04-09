@@ -136,7 +136,7 @@ export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps)
         letterSpacing: '0.05em',
         fontWeight: 'bold'
       }}>
-        Agrifeed Trazabilidad v0.2.2 🚀
+        Agrifeed Trazabilidad v0.2.3 🚀
       </div>
     </aside>
   );
