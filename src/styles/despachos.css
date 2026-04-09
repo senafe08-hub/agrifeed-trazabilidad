@@ -1,0 +1,316 @@
+/* ============================================
+   DESPACHOS PAGE — Enhanced Styles
+   ============================================ */
+
+/* ── KPI Summary Strip ── */
+.despachos-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.despachos-kpi {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+}
+
+.despachos-kpi:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.despachos-kpi-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--border-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 1.1rem;
+}
+
+.despachos-kpi-icon.total { background: var(--green-100); color: var(--green-800); }
+.despachos-kpi-icon.draft { background: var(--gold-100); color: var(--gold-600); }
+.despachos-kpi-icon.dispatched { background: #E3F2FD; color: #1565C0; }
+.despachos-kpi-icon.bultos { background: #F3E5F5; color: #7B1FA2; }
+
+.despachos-kpi-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.despachos-kpi-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.despachos-kpi-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+/* ── Estado Badges ── */
+.estado-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.estado-badge::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.estado-badge.despachado {
+  background: var(--green-100);
+  color: var(--green-800);
+}
+.estado-badge.despachado::before {
+  background: var(--green-600);
+  box-shadow: 0 0 0 2px rgba(67, 160, 71, 0.25);
+}
+
+.estado-badge.borrador {
+  background: var(--gold-100);
+  color: #E65100;
+}
+.estado-badge.borrador::before {
+  background: var(--gold-500);
+  box-shadow: 0 0 0 2px rgba(249, 168, 37, 0.25);
+}
+
+.estado-badge.anulado {
+  background: #FFEBEE;
+  color: #C62828;
+}
+.estado-badge.anulado::before {
+  background: #EF5350;
+  box-shadow: 0 0 0 2px rgba(239, 83, 80, 0.25);
+}
+
+/* ── Expandable Row ── */
+.despacho-master-row {
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.despacho-master-row:hover {
+  background: var(--bg-surface-hover) !important;
+}
+
+.despacho-master-row.expanded {
+  background: var(--green-50) !important;
+  border-left: 3px solid var(--green-600);
+}
+
+.expand-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: var(--green-100);
+  color: var(--green-800);
+  font-size: 0.7rem;
+  font-weight: 800;
+  transition: all var(--transition-fast);
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.expanded .expand-icon {
+  background: var(--green-800);
+  color: #fff;
+  transform: rotate(90deg);
+}
+
+/* ── Detail Sub-Table ── */
+.despacho-detail-row > td {
+  padding: 0 !important;
+  border-bottom: 2px solid var(--green-200) !important;
+}
+
+.detail-table-wrapper {
+  background: linear-gradient(135deg, #F9FBF7 0%, #F0F4EE 100%);
+  padding: 12px 20px 12px 48px;
+  animation: slideDown 0.25s ease;
+}
+
+.detail-table-wrapper h4 {
+  font-size: 0.78rem;
+  color: var(--green-800);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.detail-table-wrapper h4::before {
+  content: '';
+  width: 14px;
+  height: 2px;
+  background: var(--green-600);
+  border-radius: 1px;
+}
+
+.detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+}
+
+.detail-table thead {
+  background: rgba(46, 125, 50, 0.08);
+}
+
+.detail-table th {
+  padding: 8px 14px;
+  font-weight: 700;
+  text-align: left;
+  color: var(--green-900);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--green-200);
+}
+
+.detail-table td {
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(212, 226, 205, 0.5);
+  color: var(--text-secondary);
+}
+
+.detail-table tbody tr:hover {
+  background: rgba(46, 125, 50, 0.04);
+}
+
+.detail-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ── Remision Cell ── */
+.remision-value {
+  font-weight: 700;
+  color: var(--green-900);
+  font-variant-numeric: tabular-nums;
+}
+
+.remision-draft {
+  font-style: italic;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+/* ── OP Tags ── */
+.op-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.op-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--green-50);
+  color: var(--green-800);
+  border: 1px solid var(--green-200);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Total Bultos Highlight ── */
+.bultos-total {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+/* ── Action Buttons Row ── */
+.action-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.action-btns .btn {
+  padding: 5px 8px;
+  border-radius: 6px;
+  transition: all var(--transition-fast);
+}
+
+.action-btns .btn:hover {
+  transform: scale(1.08);
+}
+
+/* ── Animations ── */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ── Alternating row stripes ── */
+.data-table tbody tr:nth-child(4n+3),
+.data-table tbody tr:nth-child(4n+4) {
+  background-color: rgba(232, 245, 233, 0.3);
+}
+
+/* ── Empty State ── */
+.empty-state {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--text-muted);
+}
+
+.empty-state svg {
+  opacity: 0.3;
+  margin-bottom: 12px;
+}
+
+.empty-state p {
+  font-size: 0.9rem;
+  margin-top: 4px;
+}

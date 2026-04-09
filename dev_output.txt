@@ -1,0 +1,42 @@
+﻿
+> agrifeed-trazabilidad@0.1.0 dev
+> vite --port 8080 --host 127.0.0.1
+
+node.exe : [31merror 
+when starting dev 
+server:
+En línea: 1 Carácter: 1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Program 
+Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo      
+        : NotSpecified: 
+([3    1merror when 
+starting     dev 
+server::String) []    , 
+RemoteException
+    + 
+FullyQualifiedErrorI    
+d : NativeCommandError
+ 
+Error: Port 8080 is 
+already in use
+    at Server.onError$1 
+(file:///C:/PYTHON/APP%2
+0AGRIFEED%20TRAZABILIDAD
+/agrifeed-trazabilidad/n
+ode_modules/vite/dist/no
+de/chunks/config.js:1493
+3:28)
+    at Server.emit 
+(node:events:508:28)
+    at emitErrorNT 
+(node:net:1984:8)
+    at process.processTi
+cksAndRejections (node:i
+nternal/process/task_que
+ues:90:21)[39m

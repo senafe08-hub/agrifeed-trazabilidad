@@ -1,0 +1,520 @@
+/* ══════════════════════════════════════════════════
+   FACTURACIÓN MODULE — Styles
+   ══════════════════════════════════════════════════ */
+
+/* ── Module Tabs ── */
+.fact-tabs {
+  display: flex;
+  gap: 0;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-lg);
+  padding: 4px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+.fact-tab {
+  flex: 1;
+  padding: 12px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: inherit;
+  border-radius: var(--border-radius-md);
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+  position: relative;
+}
+
+.fact-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface-hover);
+}
+
+.fact-tab.active {
+  background: var(--color-primary);
+  color: white;
+  box-shadow: 0 2px 8px rgba(27, 94, 32, 0.25);
+}
+
+.fact-tab .tab-badge {
+  background: rgba(255,255,255,0.25);
+  color: inherit;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  min-width: 20px;
+  text-align: center;
+}
+
+.fact-tab.active .tab-badge {
+  background: rgba(255,255,255,0.3);
+  color: white;
+}
+
+/* ── KPI Strip (compact) ── */
+.fact-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.fact-kpi {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-fast);
+}
+
+.fact-kpi:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.fact-kpi-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--border-radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.fact-kpi-icon.pendiente { background: #FFF3E0; color: #E65100; }
+.fact-kpi-icon.cartera { background: #E3F2FD; color: #1565C0; }
+.fact-kpi-icon.liberado { background: var(--green-100); color: var(--green-800); }
+.fact-kpi-icon.facturado { background: #F3E5F5; color: #6A1B9A; }
+
+.fact-kpi-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.fact-kpi-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.fact-kpi-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+/* ── Estado Badges ── */
+.estado-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.estado-tag.pendiente-liberacion {
+  background: #FFF3E0;
+  color: #E65100;
+  border: 1px solid #FFE0B2;
+}
+
+.estado-tag.pendiente-pago {
+  background: #FFF8E1;
+  color: #F57F17;
+  border: 1px solid #FFF9C4;
+}
+
+.estado-tag.pendiente-pv {
+  background: #E3F2FD;
+  color: #1565C0;
+  border: 1px solid #BBDEFB;
+}
+
+.estado-tag.liberado {
+  background: var(--green-100);
+  color: var(--green-800);
+  border: 1px solid var(--green-200);
+}
+
+.estado-tag.verificar-pedido {
+  background: #FFEBEE;
+  color: #C62828;
+  border: 1px solid #FFCDD2;
+}
+
+.estado-tag.facturado {
+  background: #F3E5F5;
+  color: #6A1B9A;
+  border: 1px solid #E1BEE7;
+}
+
+.estado-tag.facturada {
+  background: #F3E5F5;
+  color: #6A1B9A;
+  border: 1px solid #E1BEE7;
+}
+
+.estado-tag.anulada {
+  background: #ECEFF1;
+  color: #546E7A;
+  border: 1px solid #CFD8DC;
+  text-decoration: line-through;
+}
+
+.estado-tag.anticipado {
+  background: #FFF8E1;
+  color: #F57F17;
+  border: 1px solid #FFF9C4;
+}
+
+/* ── Remision Info Panel ── */
+.remision-panel {
+  background: linear-gradient(135deg, var(--green-50) 0%, #F1F8E9 100%);
+  border: 1.5px solid var(--green-200);
+  border-radius: var(--border-radius-md);
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.remision-panel .info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.remision-panel .info-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--green-800);
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.remision-panel .info-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--green-900);
+}
+
+.remision-panel .info-value.large {
+  font-size: 1.3rem;
+}
+
+/* ── OP Detail Table for Pedido Creation ── */
+.op-select-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.op-select-table thead {
+  background: var(--green-50);
+}
+
+.op-select-table th {
+  padding: 10px 14px;
+  font-weight: 700;
+  text-align: left;
+  color: var(--green-900);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 2px solid var(--green-200);
+}
+
+.op-select-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
+}
+
+.op-select-table tbody tr {
+  transition: background var(--transition-fast);
+}
+
+.op-select-table tbody tr:hover {
+  background: var(--bg-surface-hover);
+}
+
+.op-select-table tbody tr.selected {
+  background: rgba(46, 125, 50, 0.06);
+  border-left: 3px solid var(--green-600);
+}
+
+.op-select-table tbody tr.disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.op-select-table .saldo-ok {
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.op-select-table .saldo-zero {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ── Checkbox Custom ── */
+.op-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+/* ── Toggle Switch (for compartido/anticipado) ── */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--bg-surface-hover);
+  border-radius: var(--border-radius-md);
+  margin-bottom: 16px;
+}
+
+.toggle-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.toggle-switch {
+  position: relative;
+  width: 42px;
+  height: 22px;
+  background: #CFD8DC;
+  border-radius: 11px;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  border: none;
+  padding: 0;
+}
+
+.toggle-switch.on {
+  background: var(--color-primary);
+}
+
+.toggle-switch::after {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  top: 2px;
+  left: 2px;
+  transition: transform var(--transition-fast);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.toggle-switch.on::after {
+  transform: translateX(20px);
+}
+
+/* ── Factura Assignment Form ── */
+.factura-form-panel {
+  background: linear-gradient(135deg, #F3E5F5 0%, #FCE4EC 100%);
+  border: 1.5px solid #E1BEE7;
+  border-radius: var(--border-radius-md);
+  padding: 20px 24px;
+  margin-top: 20px;
+}
+
+.factura-form-panel .form-label {
+  color: #6A1B9A;
+}
+
+/* ── Action Buttons in Tables ── */
+.action-btn-group {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-liberar {
+  background: var(--green-100);
+  color: var(--green-800);
+  border: 1px solid var(--green-200);
+  padding: 5px 12px;
+  border-radius: var(--border-radius-sm);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-liberar:hover {
+  background: var(--green-200);
+  box-shadow: 0 2px 6px rgba(46, 125, 50, 0.2);
+}
+
+.btn-rechazar {
+  background: #FFEBEE;
+  color: #C62828;
+  border: 1px solid #FFCDD2;
+  padding: 5px 12px;
+  border-radius: var(--border-radius-sm);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-rechazar:hover {
+  background: #FFCDD2;
+}
+
+.btn-anular {
+  background: #ECEFF1;
+  color: #546E7A;
+  border: 1px solid #CFD8DC;
+  padding: 5px 12px;
+  border-radius: var(--border-radius-sm);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-family: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.btn-anular:hover {
+  background: #CFD8DC;
+}
+
+/* ── Empty state for tabs ── */
+.fact-empty {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--text-muted);
+}
+
+.fact-empty svg {
+  width: 56px;
+  height: 56px;
+  color: var(--sage-300);
+  margin-bottom: 12px;
+}
+
+.fact-empty h3 {
+  font-size: 1rem;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.fact-empty p {
+  font-size: 0.85rem;
+}
+
+/* ── Pedido Detail Inline Table ── */
+.pedido-detail-inline {
+  background: rgba(46, 125, 50, 0.03);
+  border: 1px solid var(--green-100);
+  border-radius: var(--border-radius-sm);
+  padding: 8px;
+  margin-top: 6px;
+}
+
+.pedido-detail-inline table {
+  width: 100%;
+  font-size: 0.78rem;
+  border-collapse: collapse;
+}
+
+.pedido-detail-inline th {
+  text-align: left;
+  padding: 4px 8px;
+  color: var(--green-800);
+  font-weight: 600;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--green-100);
+}
+
+.pedido-detail-inline td {
+  padding: 4px 8px;
+  border-bottom: 1px solid rgba(0,0,0,0.04);
+}
+
+/* ── Selection Row (for multi-select in Asignación) ── */
+.select-row {
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.select-row:hover {
+  background: rgba(106, 27, 154, 0.04) !important;
+}
+
+.select-row.selected {
+  background: rgba(106, 27, 154, 0.08) !important;
+  border-left: 3px solid #6A1B9A;
+}
+
+/* ── Animations ── */
+.fact-tab-content {
+  animation: factFadeIn 0.25s ease;
+}
+
+@keyframes factFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Responsive adjustments ── */
+@media (max-width: 1200px) {
+  .fact-kpi-strip {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .remision-panel {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 800px) {
+  .fact-tabs {
+    flex-wrap: wrap;
+  }
+  .fact-kpi-strip {
+    grid-template-columns: 1fr;
+  }
+}

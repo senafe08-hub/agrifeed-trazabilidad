@@ -1,0 +1,4 @@
+- `[ ]` Copiar el logo de Agrifeed proporcionado a los estáticos del proyecto (`public/logo-agrifeed.png`).
+- `[ ]` Implementar la Gráfica de Tendencia (Porcentaje Diario) con `recharts`.
+- `[ ]` Implementar la herramienta de Exportación PDF con la marca de agua/logo en el encabezado utilizando `jspdf` y `jspdf-autotable`.
+- `[ ]` Implementar la gamificación del "Turno Perfecto" mostrando un ícono de Trofeo al cumplir las metas de baches (108) y bultos (5500).
