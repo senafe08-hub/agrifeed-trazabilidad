@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Plus, Search, Edit2, Trash2, Download } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Download, DollarSign } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { usePermissions } from '../lib/permissions';
 import supabase, { registrarAuditoria } from '../lib/supabase';
 import * as XLSX from 'xlsx';
+
+const CUPO_EDIT_ROLES = ['Administrador', 'Analista de Costos', 'Analista de Cartera'];
 
 const tabs = [
   { id: 'alimentos', label: 'Alimentos' },
@@ -13,7 +15,8 @@ const tabs = [
 ];
 
 export default function MaestroPage() {
-  const { canView, canEdit } = usePermissions('maestro');
+  const { canView, canEdit, userRole } = usePermissions('maestro');
+  const canEditCupos = CUPO_EDIT_ROLES.includes(userRole);
 
   const [activeTab, setActiveTab] = useState('alimentos');
   const [searchTerm, setSearchTerm] = useState('');
@@ -196,6 +199,8 @@ export default function MaestroPage() {
       if (activeTab === 'clientes') {
         if (columnFilters.codigo_sap && !String(item.codigo_sap || '').toLowerCase().includes(columnFilters.codigo_sap.toLowerCase())) return false;
         if (columnFilters.nombre && !String(item.nombre || '').toLowerCase().includes(columnFilters.nombre.toLowerCase())) return false;
+        if (columnFilters.poblacion && !String(item.poblacion || '').toLowerCase().includes(columnFilters.poblacion.toLowerCase())) return false;
+        if (columnFilters.tipo_pago && !String(item.tipo_pago || '').toLowerCase().includes(columnFilters.tipo_pago.toLowerCase())) return false;
       }
       if (activeTab === 'vehiculos') {
         if (columnFilters.placa && !String(item.placa || '').toLowerCase().includes(columnFilters.placa.toLowerCase())) return false;
@@ -279,20 +284,34 @@ export default function MaestroPage() {
     }
 
     if (activeTab === 'clientes') {
-      return filtered.map((item) => (
-        <tr key={item.id}>
-          <td style={{ fontWeight: 600 }}>{item.codigo_sap}</td>
-          <td>{item.nombre}</td>
-          {canEdit && (
+      return filtered.map((item) => {
+        const tipoPago = item.tipo_pago || 'CONTADO';
+        const limite = Number(item.limite_credito) || 0;
+        const isCredito = tipoPago.toUpperCase().includes('CREDITO') || tipoPago.toUpperCase().includes('CRÉDITO');
+        return (
+          <tr key={item.id}>
+            <td style={{ fontWeight: 600 }}>{item.codigo_sap}</td>
+            <td>{item.nombre}</td>
+            <td>{item.poblacion || '—'}</td>
             <td>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <button className="btn btn-outline btn-sm btn-icon" title="Editar" onClick={() => handleOpenForm(item)}><Edit2 size={14} /></button>
-                <button className="btn btn-danger btn-sm btn-icon" title="Eliminar" onClick={() => confirmDelete(item.id)}><Trash2 size={14} /></button>
-              </div>
+              <span className={`dc-tipo-badge ${isCredito ? 'credito' : 'contado'}`}>
+                {tipoPago}
+              </span>
             </td>
-          )}
-        </tr>
-      ));
+            <td style={{ textAlign: 'right', fontWeight: 600 }}>
+              {isCredito ? `$ ${limite.toLocaleString('es-CO')}` : '—'}
+            </td>
+            {canEdit && (
+              <td>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="btn btn-outline btn-sm btn-icon" title="Editar" onClick={() => handleOpenForm(item)}><Edit2 size={14} /></button>
+                  <button className="btn btn-danger btn-sm btn-icon" title="Eliminar" onClick={() => confirmDelete(item.id)}><Trash2 size={14} /></button>
+                </div>
+              </td>
+            )}
+          </tr>
+        );
+      });
     }
     
     if (activeTab === 'vehiculos') {
@@ -376,6 +395,32 @@ export default function MaestroPage() {
                     <label className="form-label">Nombre del Cliente</label>
                     <input type="text" name="nombre" className="form-input" required value={formData.nombre || ''} onChange={handleInputChange} />
                   </div>
+                  <div className="form-group">
+                    <label className="form-label">Población / Ciudad</label>
+                    <input type="text" name="poblacion" className="form-input" value={formData.poblacion || ''} onChange={handleInputChange}
+                      list="pob-list" />
+                    <datalist id="pob-list">
+                      {Array.from(new Set(data.map(d => d.poblacion).filter(Boolean))).map((p: any) => (
+                        <option key={p} value={p} />
+                      ))}
+                    </datalist>
+                  </div>
+                  {canEditCupos && (
+                    <>
+                      <div className="form-group">
+                        <label className="form-label">Tipo de Pago</label>
+                        <select name="tipo_pago" className="form-input" value={formData.tipo_pago || 'CONTADO'} onChange={handleInputChange}>
+                          <option value="CONTADO">CONTADO</option>
+                          <option value="CREDITO">CRÉDITO</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label"><DollarSign size={14} style={{ marginRight: 4 }} />Límite de Crédito</label>
+                        <input type="number" name="limite_credito" className="form-input" min="0" value={formData.limite_credito || ''} onChange={handleInputChange}
+                          disabled={(formData.tipo_pago || 'CONTADO') === 'CONTADO'} />
+                      </div>
+                    </>
+                  )}
                 </>
               )}
 
@@ -486,8 +531,11 @@ export default function MaestroPage() {
                   )}
                   {activeTab === 'clientes' && (
                     <>
-                      <th style={{ verticalAlign: 'top', width: '150px' }}>Código SAP {renderFilterInput("codigo_sap")}</th>
+                      <th style={{ verticalAlign: 'top', width: '120px' }}>Código SAP {renderFilterInput("codigo_sap")}</th>
                       <th style={{ verticalAlign: 'top' }}>Nombre del Cliente {renderFilterInput("nombre")}</th>
+                      <th style={{ verticalAlign: 'top' }}>Población {renderFilterInput("poblacion")}</th>
+                      <th style={{ verticalAlign: 'top', width: '100px' }}>Tipo Pago {renderFilterInput("tipo_pago")}</th>
+                      <th style={{ verticalAlign: 'top', width: '140px', textAlign: 'right' }}>Límite Crédito</th>
                       {canEdit && <th style={{ verticalAlign: 'top', width: 80 }}>Acciones</th>}
                     </>
                   )}

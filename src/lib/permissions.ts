@@ -32,10 +32,10 @@ export const ROLE_PERMISSIONS: Record<string, RolePermissions> = {
   },
   'Analista de Costos': {
     canView: ['dashboard', 'trazabilidad', 'maestro', 'programacion', 'produccion', 'despachos', 'facturacion'],
-    canEdit: ['maestro'],
+    canEdit: ['dashboard', 'trazabilidad', 'maestro', 'programacion', 'produccion', 'despachos', 'facturacion'],
     facturacion: {
       canViewTabs: ['pedido', 'cartera', 'factura', 'historico', 'dashboard_cartera'],
-      canEditTabs: []
+      canEditTabs: ['pedido', 'cartera', 'factura', 'historico', 'dashboard_cartera']
     }
   },
   'Auxiliar de Producción': {

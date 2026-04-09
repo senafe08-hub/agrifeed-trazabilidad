@@ -1,11 +1,11 @@
 {
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTU2UwSmMvUDJ0djVoRFh1NmNPSWdhMDFMT2V2MVV2SCt6NCtIRVA4SGlXNGJNcWZIZURzR1o2WnV5WG1YeGJxaWFWNHd5QlY1eVpEYm8venM1R0tBaHB6QXJuUWdXZWdRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc1NzYyNDUzCWZpbGU6QWdyaWZlZWQgVHJhemFiaWxpZGFkXzAuMi4yX3g2NC1zZXR1cC5leGUKTlBjL2FsYzA1UHFPU1Y2VHhmUEJMQUdYaUIzSWM0azNMMU11RHd5SGJWa2tLOVZUajhpaUhjaWZPUEFhbXl1QUNkcFRmcWJwLzFyOFZWR2tSb0FJQ1E9PQo=",
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTU2UwSmMvUDJ0dnliZ1pjVkFyOHFoQjJuVDgydUlvY1AzVElCOHM3YWEyRjhTSEk4dkZNM3pITUl4VVJNL1NWSGJNRkhOQUw0bjJyK0ZaSzUwck9zWHJqc1NqcWNmYkFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc1Nzc3MjIzCWZpbGU6QWdyaWZlZWQgVHJhemFiaWxpZGFkXzAuMi4yX3g2NC1zZXR1cC5leGUKOE9DdTVQMXZuWUxocWw4VnpYYUFnWVBBcXpOTGdkMXM3YjdOZnZReFBDSEpOVTdHakZYMkVIM2RzVGdoZDR2aU04SXE3TEZVWWZGQzdSRG12T0ZwRHc9PQo=",
                                              "url":  "https://github.com/senafe08-hub/agrifeed-trazabilidad/releases/download/v0.2.2/Agrifeed_v0.2.2.exe"
                                          }
                   },
-    "pub_date":  "2026-04-09T14:22:21Z",
+    "pub_date":  "2026-04-09T18:27:25Z",
     "version":  "0.2.2",
-    "notes":  "Actualización interna 0.2.2 (Dashboard Cartera)!"
+    "notes":  "Actualización interna 0.2.2 con Dashboard Cartera 🚀!"
 }

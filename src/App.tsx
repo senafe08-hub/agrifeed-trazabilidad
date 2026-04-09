@@ -22,6 +22,7 @@ const HARDCODED_USERS: Record<string, { role: string, password?: string }> = {
   'coordinador@agrifeed.com': { role: 'Coordinador Administrativo', password: 'agrifeed_coord' },
   'gerencia@agrifeed.com': { role: 'Gerencia', password: 'agrifeed_gerencia' },
   'cartera@agrifeed.com': { role: 'Analista de Cartera', password: 'agrifeed_cartera' },
+  'admin@agrifeed.com': { role: 'Administrador', password: 'Agrifeed.08' },
 };
 
 function App() {

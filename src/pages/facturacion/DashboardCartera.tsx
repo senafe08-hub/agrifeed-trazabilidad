@@ -104,7 +104,6 @@ const BATCH_SIZE = 500; // Supabase insert batch size
 export default function DashboardCartera() {
   /* ── Core data ── */
   const [, setCarteraData] = useState<CarteraRow[]>([]);
-  const [, setCupoData] = useState<CupoRow[]>([]);
   const [summary, setSummary] = useState<ClienteSummary[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -113,9 +112,7 @@ export default function DashboardCartera() {
 
   /* ── Upload UI ── */
   const carteraInputRef = useRef<HTMLInputElement>(null);
-  const cupoInputRef = useRef<HTMLInputElement>(null);
   const [carteraFile, setCarteraFile] = useState<{ name: string; rows: any[] } | null>(null);
-  const [cupoFile, setCupoFile] = useState<{ name: string; rows: any[] } | null>(null);
   const [showUploadPanel, setShowUploadPanel] = useState(false);
 
   /* ── Filters ── */
@@ -135,15 +132,16 @@ export default function DashboardCartera() {
   const loadFromDatabase = useCallback(async () => {
     setLoading(true);
     try {
-      const [{ data: carteraRows, error: cErr }, { data: cupoRows, error: qErr }] = await Promise.all([
+      // Load cartera from cartera_detalle and cupos from maestro_clientes
+      const [{ data: carteraRows, error: cErr }, { data: clienteRows, error: clErr }] = await Promise.all([
         supabase.from('cartera_detalle').select('*').order('importe', { ascending: false }),
-        supabase.from('cartera_cupos').select('*'),
+        supabase.from('maestro_clientes').select('codigo_sap, nombre, poblacion, tipo_pago, limite_credito'),
       ]);
 
       if (cErr) throw cErr;
-      if (qErr) throw qErr;
+      if (clErr) throw clErr;
 
-      if (carteraRows && carteraRows.length > 0 && cupoRows) {
+      if (carteraRows && carteraRows.length > 0 && clienteRows) {
         const parsedCartera: CarteraRow[] = carteraRows.map((r: any) => ({
           cliente: r.cliente,
           factura: r.factura || 0,
@@ -155,17 +153,17 @@ export default function DashboardCartera() {
           claseDoc: r.clase_documento || '',
         }));
 
-        const parsedCupo: CupoRow[] = cupoRows.map((r: any) => ({
-          deudor: r.deudor,
-          nombre: r.nombre_deudor || '',
-          limiteCredito: r.limite_credito || 0,
-          limiteTotal: r.limite_total || 0,
-          tipoPago: r.tipo_pago || '',
+        // Build cupo data from maestro_clientes
+        const parsedCupo: CupoRow[] = clienteRows.map((r: any) => ({
+          deudor: r.codigo_sap,
+          nombre: r.nombre || '',
+          limiteCredito: Number(r.limite_credito) || 0,
+          limiteTotal: Number(r.limite_credito) || 0,
+          tipoPago: r.tipo_pago || 'CONTADO',
           poblacion: r.poblacion || '',
         }));
 
         setCarteraData(parsedCartera);
-        setCupoData(parsedCupo);
         processMerge(parsedCartera, parsedCupo);
         setDataLoaded(true);
 
@@ -202,97 +200,53 @@ export default function DashboardCartera() {
     reader.readAsArrayBuffer(file);
   }, []);
 
-  const parseCupoFile = useCallback((file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const wb = XLSX.read(e.target?.result, { type: 'array' });
-        const sheet = wb.Sheets[wb.SheetNames[0]];
-        const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-        setCupoFile({ name: file.name, rows });
-        toast.success(`Archivo leído: ${rows.length} registros de cupos`);
-      } catch (err: any) {
-        toast.error('Error al leer el archivo: ' + err.message);
-      }
-    };
-    reader.readAsArrayBuffer(file);
-  }, []);
-
   /* ══════════════════════════════════════════════════
-     UPLOAD TO DATABASE (delete old → insert new)
+     UPLOAD TO DATABASE (delete old → insert new cartera)
      ══════════════════════════════════════════════════ */
   const handleUploadToDatabase = useCallback(async () => {
-    if (!carteraFile && !cupoFile) {
-      toast.error('Debe cargar al menos un archivo para actualizar.');
+    if (!carteraFile) {
+      toast.error('Debe cargar el archivo de cartera.');
       return;
     }
     setUploading(true);
     try {
-      const updates: string[] = [];
-      // ── 1. Update Cartera if file provided ──
-      if (carteraFile) {
-        const carteraRows = carteraFile.rows.map(r => ({
-          sociedad: Number(r['Sociedad']) || null,
-          fecha_documento: excelDateToStr(r['Fecha de documento']) || null,
-          ejercicio: Number(r['Ejercicio']) || null,
-          periodo_contable: Number(r['Período contable'] || r['Periodo contable']) || null,
-          num_documento: Number(r['N° documento'] || r['Nº documento']) || null,
-          clase_documento: String(r['Clase de documento'] || ''),
-          factura: Number(r['Factura']) || null,
-          cliente: Number(r['Cliente']) || 0,
-          importe: Number(r['Importe en moneda local']) || 0,
-          cifra_interes: Number(r['Cifra de interés'] || r['Cifra de interes']) || 0,
-          demora_vencimiento: Number(r['Demora tras vencimiento neto']) || 0,
-          fecha_pago: excelDateToStr(r['Fecha de pago']) || null,
-          vencimiento_neto: excelDateToStr(r['Vencimiento neto']) || null,
-          condiciones_pago: String(r['Condiciones de pago'] || ''),
-          cuenta_mayor: Number(r['Cuenta de mayor']) || null,
-          texto: String(r['Texto'] || ''),
-        }));
+      const carteraRows = carteraFile.rows.map(r => ({
+        sociedad: Number(r['Sociedad']) || null,
+        fecha_documento: excelDateToStr(r['Fecha de documento']) || null,
+        ejercicio: Number(r['Ejercicio']) || null,
+        periodo_contable: Number(r['Período contable'] || r['Periodo contable']) || null,
+        num_documento: Number(r['N° documento'] || r['Nº documento']) || null,
+        clase_documento: String(r['Clase de documento'] || ''),
+        factura: Number(r['Factura']) || null,
+        cliente: Number(r['Cliente']) || 0,
+        importe: Number(r['Importe en moneda local']) || 0,
+        cifra_interes: Number(r['Cifra de interés'] || r['Cifra de interes']) || 0,
+        demora_vencimiento: Number(r['Demora tras vencimiento neto']) || 0,
+        fecha_pago: excelDateToStr(r['Fecha de pago']) || null,
+        vencimiento_neto: excelDateToStr(r['Vencimiento neto']) || null,
+        condiciones_pago: String(r['Condiciones de pago'] || ''),
+        cuenta_mayor: Number(r['Cuenta de mayor']) || null,
+        texto: String(r['Texto'] || ''),
+      }));
 
-        await supabase.from('cartera_detalle').delete().gte('id', 0);
-        for (let i = 0; i < carteraRows.length; i += BATCH_SIZE) {
-          const batch = carteraRows.slice(i, i + BATCH_SIZE);
-          const { error } = await supabase.from('cartera_detalle').insert(batch);
-          if (error) throw new Error(`Error insertando cartera lote ${i}: ${error.message}`);
-        }
-        updates.push(`${carteraRows.length} documentos de cartera`);
+      await supabase.from('cartera_detalle').delete().gte('id', 0);
+      for (let i = 0; i < carteraRows.length; i += BATCH_SIZE) {
+        const batch = carteraRows.slice(i, i + BATCH_SIZE);
+        const { error } = await supabase.from('cartera_detalle').insert(batch);
+        if (error) throw new Error(`Error insertando cartera lote ${i}: ${error.message}`);
       }
 
-      // ── 2. Update Cupos if file provided ──
-      if (cupoFile) {
-        const cupoRows = cupoFile.rows.map(r => ({
-          deudor: Number(r['Deudor']) || 0,
-          nombre_deudor: String(r['Nombre Deudor'] || '').trim(),
-          limite_credito: Number(r['Límite crédito'] || r['Limite credito'] || r['Límite Crédito'] || 0),
-          limite_total: Number(r['Límite total'] || r['Limite total'] || r['Límite Total'] || 0),
-          tipo_pago: String(r['Tipo Pago'] || '').trim(),
-          poblacion: String(r['Poblacion'] || r['Población'] || '').trim(),
-        }));
+      await registrarAuditoria('IMPORT', 'Cartera', `Se actualizó la cartera: ${carteraRows.length} documentos`);
+      toast.success(`✅ Cartera actualizada: ${carteraRows.length} documentos`);
 
-        await supabase.from('cartera_cupos').delete().gte('id', 0);
-        for (let i = 0; i < cupoRows.length; i += BATCH_SIZE) {
-          const batch = cupoRows.slice(i, i + BATCH_SIZE);
-          const { error } = await supabase.from('cartera_cupos').insert(batch);
-          if (error) throw new Error(`Error insertando cupos lote ${i}: ${error.message}`);
-        }
-        updates.push(`${cupoRows.length} clientes con cupo`);
-      }
-
-      await registrarAuditoria('IMPORT', 'Cartera', `Se actualizó la cartera: ${updates.join(' + ')}`);
-
-      toast.success(`✅ Actualizado: ${updates.join(' + ')}`);
-
-      // ── 5. Reload from DB ──
       setCarteraFile(null);
-      setCupoFile(null);
       setShowUploadPanel(false);
       await loadFromDatabase();
     } catch (err: any) {
       toast.error('Error al actualizar la base de datos: ' + err.message);
     }
     setUploading(false);
-  }, [carteraFile, cupoFile, loadFromDatabase]);
+  }, [carteraFile, loadFromDatabase]);
 
   /* ══════════════════════════════════════════════════
      DATA PROCESSING (merge cartera + cupos → summary)
@@ -493,14 +447,13 @@ export default function DashboardCartera() {
   };
 
   /* ── Drop handler ── */
-  const handleDrop = useCallback((e: React.DragEvent, target: 'cartera' | 'cupo') => {
+  const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     const file = e.dataTransfer.files[0];
     if (!file) return;
-    if (target === 'cartera') parseCarteraFile(file);
-    else parseCupoFile(file);
-  }, [parseCarteraFile, parseCupoFile]);
+    parseCarteraFile(file);
+  }, [parseCarteraFile]);
 
   const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
 
@@ -550,19 +503,18 @@ export default function DashboardCartera() {
           <ArrowUpCircle size={20} style={{ color: '#1565C0' }} />
           <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>Actualizar Datos de Cartera</h3>
         </div>
-        <button className="btn-icon-close" onClick={() => { setShowUploadPanel(false); setCarteraFile(null); setCupoFile(null); }}>
+        <button className="btn-icon-close" onClick={() => { setShowUploadPanel(false); setCarteraFile(null); }}>
           <X size={18} />
         </button>
       </div>
       <p className="dc-upload-warning">
-        ⚠️ Al actualizar un archivo, solo se reemplaza esa tabla. Puede subir uno o ambos.
+        ⚠️ Al actualizar, se reemplazará toda la información de cartera con los datos nuevos. Los cupos se gestionan desde <strong>Maestro de Datos → Clientes</strong>.
       </p>
 
-      <div className="dc-upload-grid">
-        {/* Cartera File */}
+      <div className="dc-upload-grid" style={{ gridTemplateColumns: '1fr' }}>
         <div
           className={`dc-drop-zone ${carteraFile ? 'loaded' : ''}`}
-          onDrop={e => handleDrop(e, 'cartera')}
+          onDrop={e => handleDrop(e)}
           onDragOver={handleDragOver}
           onClick={() => carteraInputRef.current?.click()}
         >
@@ -579,33 +531,7 @@ export default function DashboardCartera() {
               <>
                 <FileSpreadsheet size={32} className="dc-icon-upload" />
                 <span className="dc-drop-label">Detalle De Cartera</span>
-                <span className="dc-drop-hint">Arrastra o haz clic</span>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Cupo file */}
-        <div
-          className={`dc-drop-zone ${cupoFile ? 'loaded' : ''}`}
-          onDrop={e => handleDrop(e, 'cupo')}
-          onDragOver={handleDragOver}
-          onClick={() => cupoInputRef.current?.click()}
-        >
-          <input ref={cupoInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }}
-            onChange={e => { if (e.target.files?.[0]) parseCupoFile(e.target.files[0]); }} />
-          <div className="dc-drop-zone-inner">
-            {cupoFile ? (
-              <>
-                <CheckCircle2 size={32} className="dc-icon-success" />
-                <span className="dc-file-name">{cupoFile.name}</span>
-                <span className="dc-file-count">{cupoFile.rows.length} clientes</span>
-              </>
-            ) : (
-              <>
-                <Users size={32} className="dc-icon-upload" />
-                <span className="dc-drop-label">Cupo De Clientes</span>
-                <span className="dc-drop-hint">Arrastra o haz clic</span>
+                <span className="dc-drop-hint">Arrastra o haz clic para cargar el archivo Excel</span>
               </>
             )}
           </div>
@@ -615,11 +541,11 @@ export default function DashboardCartera() {
       <button
         className="dc-process-btn"
         onClick={handleUploadToDatabase}
-        disabled={(!carteraFile && !cupoFile) || uploading}
+        disabled={!carteraFile || uploading}
         style={{ width: '100%', justifyContent: 'center' }}
       >
         {uploading ? <RefreshCw size={18} className="dc-spin" /> : <Database size={18} />}
-        {uploading ? 'Subiendo a la base de datos...' : `Actualizar ${carteraFile && cupoFile ? 'Ambos' : carteraFile ? 'Cartera' : cupoFile ? 'Cupos' : ''}`}
+        {uploading ? 'Subiendo a la base de datos...' : 'Actualizar Cartera'}
       </button>
     </div>
   );

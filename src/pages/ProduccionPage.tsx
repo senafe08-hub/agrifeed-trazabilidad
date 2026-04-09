@@ -16,7 +16,7 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
   const { canView, canEdit } = usePermissions('produccion');
 
   // Tabs & Turno Report
-  const [activeTab, setActiveTab] = useState<'registros' | 'reporte'>('registros');
+  const [activeTab, setActiveTab] = useState<'registros' | 'reporte' | 'estado_ops'>('registros');
   const [reportMode, setReportMode] = useState<'lista' | 'nuevo' | 'detalle' | 'editar_detalle'>('lista');
   const [historialReportes, setHistorialReportes] = useState<any[]>([]);
   const [reporteFecha, setReporteFecha] = useState(new Date().toISOString().split('T')[0]);
@@ -50,9 +50,14 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
   // Search & filters
   const [searchTerm, setSearchTerm] = useState('');
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
+  const [mostrarSoloPendientes, setMostrarSoloPendientes] = useState(true);
+  const [opsSearchTerm, setOpsSearchTerm] = useState('');
+  const [opColumnFilters, setOpColumnFilters] = useState<Record<string, string>>({});
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
+  const [opCurrentPage, setOpCurrentPage] = useState(1);
+  const OP_PAGE_SIZE = 100;
 
   // Export range UI
   const [showExportRange, setShowExportRange] = useState(false);
@@ -283,10 +288,24 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
     setSaving(true);
     if (!formData.fecha_produccion || !formData.turno || !formData.lote || !formData.bultos_entregados) {
       alert("Faltan campos obligatorios");
+      setSaving(false);
       return;
     }
-    if (opInfo.pendiente < Number(formData.bultos_entregados)) {
-      if (!window.confirm("Los bultos entregados superan la cantidad programada pendiente. ¿Deseas guardar de todos modos?")) return;
+
+    const bultos = Number(formData.bultos_entregados);
+    if (opInfo.programado > 0) {
+      const maxPermitido = opInfo.programado * 1.05;
+      if (opInfo.acumulado + bultos > maxPermitido) {
+        alert(`No puedes entregar esta cantidad porque supera el límite del +5% de lo programado.\nProgramado: ${opInfo.programado}\nMáximo permitido: ${Math.floor(maxPermitido)}\nAcumulado previo: ${opInfo.acumulado}\nTu entrega de ${bultos} daría un total de ${opInfo.acumulado + bultos}`);
+        setSaving(false);
+        return;
+      }
+    }
+    if (opInfo.pendiente > 0 && opInfo.pendiente < bultos) {
+      if (!window.confirm("Los bultos entregados superan la cantidad programada pendiente original (pero dentro del 5% permitido). ¿Deseas guardar de todos modos?")) {
+        setSaving(false);
+        return;
+      }
     }
 
     try {
@@ -353,6 +372,111 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
     const start = (currentPage - 1) * PAGE_SIZE;
     return filtered.slice(start, start + PAGE_SIZE);
   }, [filtered, currentPage]);
+
+  // RESUMEN OPs PARA EL DASHBOARD DE ESTADO
+  const opsResumen = useMemo(() => {
+    return lotes.map(l => {
+      const opsData = data.filter(d => String(d.lote) === String(l.lote));
+      const bultosAcumulados = opsData.reduce((sum, current) => sum + (current.bultos || 0), 0);
+      const programado = l.bultos_programados || 0;
+      const pendiente = programado - bultosAcumulados;
+      let porcentaje = 0;
+      if (programado > 0) {
+        porcentaje = (bultosAcumulados / programado) * 100;
+      } else if (bultosAcumulados > 0) {
+        porcentaje = 100;
+      }
+
+      const rawAlimento = l.maestro_alimentos;
+      const alimento = Array.isArray(rawAlimento) ? rawAlimento[0]?.descripcion : rawAlimento?.descripcion || '';
+      
+      const rawCliente = l.maestro_clientes;
+      const cliente = Array.isArray(rawCliente) ? rawCliente[0]?.nombre : rawCliente?.nombre || '';
+
+      return {
+        lote: l.lote,
+        alimento,
+        cliente,
+        programado,
+        acumulado: bultosAcumulados,
+        pendiente,
+        porcentaje
+      };
+    }).filter(op => op.programado > 0 || op.acumulado > 0);
+  }, [lotes, data]);
+
+  const handleOpColFilter = useCallback((key: string, value: string) => {
+    setOpColumnFilters(prev => ({ ...prev, [key]: value }));
+  }, []);
+
+  const opDatalistValues = useMemo(() => {
+    const cols = ['lote', 'alimento', 'cliente'];
+    const result: Record<string, string[]> = {};
+    for (const col of cols) {
+      const set = new Set<string>();
+      opsResumen.forEach(row => {
+        const v = (row as any)[col];
+        if (v != null && v !== '') set.add(String(v));
+      });
+      result[col] = Array.from(set);
+    }
+    return result;
+  }, [opsResumen]);
+
+  const renderOpFilterInput = useCallback((colKey: string) => {
+    const listId = `dl-op-${colKey}`;
+    return (
+      <div style={{ marginTop: '6px' }}>
+        <input
+          type="text"
+          list={listId}
+          className="col-filter-input"
+          placeholder="Filtrar..."
+          value={opColumnFilters[colKey] || ''}
+          onChange={e => handleOpColFilter(colKey, e.target.value)}
+        />
+        <datalist id={listId}>
+          {(opDatalistValues[colKey] || []).slice(0, 200).map(val => (
+            <option key={val} value={val} />
+          ))}
+        </datalist>
+      </div>
+    );
+  }, [opColumnFilters, opDatalistValues, handleOpColFilter]);
+
+  const opsParaMostrar = useMemo(() => {
+    let filteredOps = opsResumen;
+    if (mostrarSoloPendientes) {
+      filteredOps = filteredOps.filter(op => op.acumulado < op.programado * 1.05);
+    }
+    if (opsSearchTerm) {
+      const q = opsSearchTerm.toLowerCase();
+      filteredOps = filteredOps.filter(op => 
+        String(op.lote).toLowerCase().includes(q) || 
+        op.alimento.toLowerCase().includes(q) ||
+        op.cliente.toLowerCase().includes(q)
+      );
+    }
+    for (const key of Object.keys(opColumnFilters)) {
+      const fv = opColumnFilters[key];
+      if (!fv) continue;
+      filteredOps = filteredOps.filter(op => {
+        const val = String((op as any)[key] || '').toLowerCase();
+        return val.includes(fv.toLowerCase());
+      });
+    }
+    return filteredOps;
+  }, [opsResumen, mostrarSoloPendientes, opsSearchTerm, opColumnFilters]);
+
+  useEffect(() => {
+    setOpCurrentPage(1);
+  }, [mostrarSoloPendientes, opsSearchTerm, opColumnFilters]);
+
+  const opTotalPages = Math.ceil(opsParaMostrar.length / OP_PAGE_SIZE);
+  const paginatedOps = useMemo(() => {
+    const start = (opCurrentPage - 1) * OP_PAGE_SIZE;
+    return opsParaMostrar.slice(start, start + OP_PAGE_SIZE);
+  }, [opsParaMostrar, opCurrentPage]);
 
   const datalistValues = useMemo(() => {
     const cols = ['fecha_produccion', 'turno', 'lote', 'alimento', 'categoria', 'observaciones'];
@@ -665,6 +789,12 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
           <ClipboardList size={16} /> Registros de Producción
         </button>
         <button 
+          className={`btn ${activeTab === 'estado_ops' ? 'btn-primary' : 'btn-outline'}`} 
+          onClick={() => setActiveTab('estado_ops')}
+        >
+          Estado Órdenes (OP)
+        </button>
+        <button 
           className={`btn ${activeTab === 'reporte' ? 'btn-primary' : 'btn-outline'}`} 
           onClick={() => { setActiveTab('reporte'); setReportMode('lista'); }}
         >
@@ -673,9 +803,31 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
       </div>
 
       {/* --- REGISTROS TAB --- */}
-      <div style={{ display: activeTab === 'registros' ? 'block' : 'none' }}>
+      <div style={{ display: activeTab === 'registros' ? 'block' : 'none', animation: 'fadeIn 0.3s ease' }}>
+        
+        <div className="grid-4" style={{ marginBottom: 16 }}>
+          <div className="card" style={{ background: 'linear-gradient(to right, #4CAF50, #81C784)', color: 'white', border: 'none', borderRadius: 12, boxShadow: '0 4px 12px rgba(76, 175, 80, 0.2)' }}>
+            <div className="card-body" style={{ padding: '20px' }}>
+              <p style={{ margin: 0, opacity: 0.9, fontSize: '0.9rem', fontWeight: 600 }}>Total Registros</p>
+              <h3 style={{ margin: '8px 0 0', fontSize: '2rem', fontWeight: 800 }}>{data.length}</h3>
+            </div>
+          </div>
+          <div className="card" style={{ background: 'linear-gradient(to right, #1976D2, #64B5F6)', color: 'white', border: 'none', borderRadius: 12, boxShadow: '0 4px 12px rgba(25, 118, 210, 0.2)' }}>
+            <div className="card-body" style={{ padding: '20px' }}>
+              <p style={{ margin: 0, opacity: 0.9, fontSize: '0.9rem', fontWeight: 600 }}>Bultos Producidos (Histórico)</p>
+              <h3 style={{ margin: '8px 0 0', fontSize: '2rem', fontWeight: 800 }}>{data.reduce((sum, d) => sum + (d.bultos || 0), 0).toLocaleString()}</h3>
+            </div>
+          </div>
+          <div className="card" style={{ background: 'white', border: 'none', borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+            <div className="card-body" style={{ padding: '20px' }}>
+              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 600 }}>OPs Producidas/Activas</p>
+              <h3 style={{ margin: '8px 0 0', fontSize: '2rem', color: 'var(--text-color)', fontWeight: 800 }}>{opsResumen.length}</h3>
+            </div>
+          </div>
+        </div>
+
         {/* Toolbar */}
-        <div className="toolbar">
+        <div className="toolbar" style={{ background: 'white', padding: '16px', borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', border: '1px solid #f0f0f0' }}>
           <div className="toolbar-left">
             <div className="search-box">
               <Search size={18} />
@@ -877,6 +1029,124 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
         </div>
       </div>
 
+      {/* --- ESTADO OPs TAB --- */}
+      <div style={{ display: activeTab === 'estado_ops' ? 'block' : 'none', animation: 'fadeIn 0.3s ease' }}>
+        
+        <div className="grid-3" style={{ marginBottom: 16 }}>
+          <div className="card" style={{ border: 'none', borderLeft: '4px solid #1976D2', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.04)' }}>
+            <div className="card-body" style={{ padding: '20px' }}>
+              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.95rem', fontWeight: 600 }}>Total Programado (OPs Activas)</p>
+              <h3 style={{ margin: '8px 0 0', fontSize: '1.8rem', fontWeight: 800 }}>{opsParaMostrar.reduce((s,o)=>s+o.programado,0).toLocaleString()} <span style={{fontSize:'1rem', color:'gray', fontWeight:500}}>Bultos</span></h3>
+            </div>
+          </div>
+          <div className="card" style={{ border: 'none', borderLeft: '4px solid #388E3C', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.04)' }}>
+            <div className="card-body" style={{ padding: '20px' }}>
+              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.95rem', fontWeight: 600 }}>Total Producido (Acumulado)</p>
+              <h3 style={{ margin: '8px 0 0', fontSize: '1.8rem', fontWeight: 800 }}>{opsParaMostrar.reduce((s,o)=>s+o.acumulado,0).toLocaleString()} <span style={{fontSize:'1rem', color:'gray', fontWeight:500}}>Bultos</span></h3>
+            </div>
+          </div>
+          <div className="card" style={{ border: 'none', borderLeft: '4px solid #FFA000', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.04)' }}>
+            <div className="card-body" style={{ padding: '20px' }}>
+              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.95rem', fontWeight: 600 }}>Cumplimiento Promedio OPs</p>
+              <h3 style={{ margin: '8px 0 0', fontSize: '1.8rem', fontWeight: 800 }}>
+                {opsParaMostrar.reduce((sum, o) => sum + o.programado, 0) > 0 
+                  ? ((opsParaMostrar.reduce((sum, o) => sum + Math.min(o.acumulado, o.programado), 0) / opsParaMostrar.reduce((sum, o) => sum + o.programado, 0)) * 100).toFixed(1) 
+                  : 0}%
+              </h3>
+            </div>
+          </div>
+        </div>
+
+        <div className="toolbar" style={{ marginBottom: 16, background: 'white', padding: '16px', borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.04)', border: '1px solid #f0f0f0' }}>
+          <div className="toolbar-left" style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
+             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}>
+               <input type="checkbox" checked={mostrarSoloPendientes} onChange={e => setMostrarSoloPendientes(e.target.checked)} style={{ width: 18, height: 18 }} />
+               Mostrar solo en proceso (Pendientes)
+             </label>
+             <div className="line-divider" style={{ width: 1, height: 24, background: '#e0e0e0' }}></div>
+             <div className="search-box">
+               <Search size={18} color="#999" />
+               <input type="text" className="form-input" placeholder="Buscar OP, alimento, cliente..." value={opsSearchTerm} onChange={e => setOpsSearchTerm(e.target.value)} style={{ paddingLeft: 36, width: 320, borderRadius: 8, background: '#f8f9fa', border: '1px solid transparent' }} />
+             </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">Consolidado de Órdenes de Producción</span>
+          </div>
+          <div className="card-body" style={{ padding: 0 }}>
+            <div className="data-table-wrapper">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th style={{ verticalAlign: 'top' }}>Lote (OP) {renderOpFilterInput('lote')}</th>
+                    <th style={{ verticalAlign: 'top' }}>Alimento {renderOpFilterInput('alimento')}</th>
+                    <th style={{ verticalAlign: 'top' }}>Cliente {renderOpFilterInput('cliente')}</th>
+                    <th style={{ textAlign: 'right', verticalAlign: 'top' }}>Programado</th>
+                    <th style={{ textAlign: 'right', verticalAlign: 'top' }}>Producido</th>
+                    <th style={{ textAlign: 'right', verticalAlign: 'top' }}>Pendiente</th>
+                    <th style={{ textAlign: 'center', verticalAlign: 'top' }}>% Cumplimiento</th>
+                    <th style={{ textAlign: 'center', verticalAlign: 'top' }}>Adicional/Faltante</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedOps.length === 0 ? (
+                    <tr><td colSpan={8} style={{ textAlign: 'center', padding: '20px' }}>No hay OPs para mostrar.</td></tr>
+                  ) : (
+                    paginatedOps.map(op => {
+                      const diferencia = op.acumulado - op.programado;
+                      const difPct = op.programado > 0 ? (diferencia / op.programado) * 100 : 0;
+                      
+                      return (
+                      <tr key={op.lote}>
+                        <td style={{ fontWeight: 700 }}>{op.lote}</td>
+                        <td>{op.alimento}</td>
+                        <td>{op.cliente || '—'}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{op.programado.toLocaleString()}</td>
+                        <td style={{ textAlign: 'right' }}>{op.acumulado.toLocaleString()}</td>
+                        <td style={{ textAlign: 'right', color: op.pendiente > 0 ? 'inherit' : (op.pendiente === 0 ? 'var(--green-700)' : 'red') }}>
+                          {op.pendiente > 0 ? op.pendiente.toLocaleString() : 0}
+                        </td>
+                        <td style={{ textAlign: 'center', fontWeight: 'bold', color: pctColor(op.porcentaje) }}>
+                          {op.porcentaje.toFixed(1)}%
+                        </td>
+                        <td style={{ textAlign: 'center', fontWeight: 'bold' }}>
+                          {diferencia > 0 ? (
+                            <span className="badge" style={{ color: '#C62828', background: '#FFEBEE', padding: '4px 12px', fontSize: '0.75rem' }}>
+                              +{diferencia.toLocaleString()} (+{difPct.toFixed(1)}%)
+                            </span>
+                          ) : (diferencia < 0 ? (
+                            <span className="badge" style={{ color: '#E65100', background: '#FFF3E0', padding: '4px 12px', fontSize: '0.75rem' }}>
+                              {diferencia.toLocaleString()} ({difPct.toFixed(1)}%)
+                            </span>
+                          ) : (
+                            <span className="badge" style={{ color: '#2E7D32', background: '#E8F5E9', padding: '4px 12px', fontSize: '0.75rem' }}>Exacto</span>
+                          ))}
+                        </td>
+                      </tr>
+                    )})
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {/* OP Pagination Controls */}
+            {opsParaMostrar.length > 0 && (
+              <div className="pagination" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderTop: '1px solid #f0f0f0' }}>
+                <span>Mostrando {((opCurrentPage - 1) * OP_PAGE_SIZE) + 1}–{Math.min(opCurrentPage * OP_PAGE_SIZE, opsParaMostrar.length)} de {opsParaMostrar.length} OPs</span>
+                {opTotalPages > 1 && (
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <button className="btn btn-outline btn-sm" disabled={opCurrentPage === 1} onClick={() => setOpCurrentPage(p => p - 1)}>Ant</button>
+                    <span style={{ fontWeight: 600 }}>Pág {opCurrentPage} / {opTotalPages}</span>
+                    <button className="btn btn-outline btn-sm" disabled={opCurrentPage === opTotalPages} onClick={() => setOpCurrentPage(p => p + 1)}>Sig</button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* --- DASHBOARD REPORTE CUMPLIMIENTO TAB --- */}
       <div style={{ display: activeTab === 'reporte' ? 'block' : 'none' }}>
         
@@ -942,31 +1212,33 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '20px', marginBottom: '20px' }}>
-            <div className="card" style={{ border: '1px solid var(--gray-200)' }}>
-              <div className="card-header"><span className="card-title">Nivel de Producción (Llenado de Meta)</span></div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '24px', marginBottom: '24px' }}>
+            <div className="card" style={{ border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.04)', borderRadius: 12 }}>
+              <div className="card-header" style={{ borderBottom: '1px solid #f0f0f0', padding: '16px 20px' }}>
+                <span className="card-title" style={{ fontSize: '1.05rem', fontWeight: 700 }}>Nivel de Producción (Llenado de Meta)</span>
+              </div>
               <div className="card-body" style={{ height: 320, padding: '20px 20px 10px 0' }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e0e0e0" />
-                    <XAxis dataKey="nombre" fontSize={12} stroke="#888" tickMargin={10} />
-                    <YAxis yAxisId="bultos" orientation="left" fontSize={11} domain={[0, META_BULTOS]} stroke="#388E3C" tickFormatter={(value) => value.toLocaleString()} />
-                    <YAxis yAxisId="baches" orientation="right" fontSize={11} domain={[0, META_BACHES]} stroke="#1976D2" />
-                    <RechartsTooltip formatter={(value: any) => typeof value === 'number' ? value.toLocaleString() : value} />
-                    <Legend wrapperStyle={{ paddingTop: '10px' }} />
-                    <Bar yAxisId="bultos" dataKey="bultos" name={`Bultos (Meta: ${META_BULTOS})`} radius={[4, 4, 0, 0]} background={{ fill: 'rgba(0,0,0,0.04)' }} barSize={16}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                    <XAxis dataKey="nombre" fontSize={11} stroke="#999" tickMargin={10} axisLine={false} tickLine={false} />
+                    <YAxis yAxisId="bultos" orientation="left" fontSize={11} domain={[0, META_BULTOS]} stroke="#388E3C" tickFormatter={(value) => value.toLocaleString()} axisLine={false} tickLine={false} />
+                    <YAxis yAxisId="baches" orientation="right" fontSize={11} domain={[0, META_BACHES]} stroke="#1976D2" axisLine={false} tickLine={false} />
+                    <RechartsTooltip contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} formatter={(value: any) => typeof value === 'number' ? value.toLocaleString() : value} />
+                    <Legend wrapperStyle={{ paddingTop: '10px' }} iconType="circle" />
+                    <Bar yAxisId="bultos" dataKey="bultos" name={`Bultos (Meta: ${META_BULTOS})`} radius={[6, 6, 0, 0]} background={{ fill: 'rgba(0,0,0,0.02)' }} barSize={18}>
                       {chartData.map((entry, index) => {
-                        let fill = "#388E3C"; // Bien > 100%
-                        if (entry.bultos_pct < 80) fill = "#d32f2f"; // Mal < 80%
-                        else if (entry.bultos_pct < 100) fill = "#fbc02d"; // Regular 80-99%
+                        let fill = "#4CAF50"; // Bien > 100%
+                        if (entry.bultos_pct < 80) fill = "#EF5350"; // Mal < 80%
+                        else if (entry.bultos_pct < 100) fill = "#FFA726"; // Regular 80-99%
                         return <Cell key={`cell-bult-${index}`} fill={fill} />;
                       })}
                     </Bar>
-                    <Bar yAxisId="baches" dataKey="baches" name={`Baches (Meta: ${META_BACHES})`} radius={[4, 4, 0, 0]} background={{ fill: 'rgba(0,0,0,0.04)' }} barSize={16}>
+                    <Bar yAxisId="baches" dataKey="baches" name={`Baches (Meta: ${META_BACHES})`} radius={[6, 6, 0, 0]} background={{ fill: 'rgba(0,0,0,0.02)' }} barSize={18}>
                       {chartData.map((entry, index) => {
-                        let fill = "#1976D2"; // Bien > 100%
-                        if (entry.baches_pct < 80) fill = "#d32f2f"; // Mal < 80%
-                        else if (entry.baches_pct < 100) fill = "#fbc02d"; // Regular 80-99%
+                        let fill = "#42A5F5"; // Bien > 100%
+                        if (entry.baches_pct < 80) fill = "#EF5350"; // Mal < 80%
+                        else if (entry.baches_pct < 100) fill = "#FFA726"; // Regular 80-99%
                         return <Cell key={`cell-bach-${index}`} fill={fill} />;
                       })}
                     </Bar>
@@ -975,18 +1247,20 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
               </div>
             </div>
 
-            <div className="card" style={{ border: '1px solid var(--gray-200)' }}>
-              <div className="card-header"><span className="card-title">Tendencia de Cumplimiento Histórico</span></div>
+            <div className="card" style={{ border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.04)', borderRadius: 12 }}>
+              <div className="card-header" style={{ borderBottom: '1px solid #f0f0f0', padding: '16px 20px' }}>
+                <span className="card-title" style={{ fontSize: '1.05rem', fontWeight: 700 }}>Tendencia de Cumplimiento Histórico</span>
+              </div>
               <div className="card-body" style={{ height: 320, padding: '20px 20px 10px 0' }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e0e0e0" />
-                    <XAxis dataKey="nombre" fontSize={12} stroke="#888" />
-                    <YAxis fontSize={12} domain={[0, 120]} stroke="#888" />
-                    <RechartsTooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="baches_pct" name="% Meta Baches" stroke="#F57C00" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                    <Line type="monotone" dataKey="bultos_pct" name="% Meta Bultos" stroke="#388E3C" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                    <XAxis dataKey="nombre" fontSize={11} stroke="#999" tickMargin={10} axisLine={false} tickLine={false} />
+                    <YAxis fontSize={11} domain={[0, 120]} stroke="#999" axisLine={false} tickLine={false} />
+                    <RechartsTooltip contentStyle={{ borderRadius: 8, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} />
+                    <Legend wrapperStyle={{ paddingTop: '10px' }} iconType="circle" />
+                    <Line type="monotone" dataKey="baches_pct" name="% Meta Baches" stroke="#FFA726" strokeWidth={3} dot={{ r: 5, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 8 }} />
+                    <Line type="monotone" dataKey="bultos_pct" name="% Meta Bultos" stroke="#66BB6A" strokeWidth={3} dot={{ r: 5, strokeWidth: 2, fill: '#fff' }} activeDot={{ r: 8 }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>

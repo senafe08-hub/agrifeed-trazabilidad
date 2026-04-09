@@ -5,7 +5,7 @@ import { usePermissions } from '../lib/permissions';
 import supabase from '../lib/supabase';
 
 const demoUsers = [
-  { id: 1, email: 'admin@agrifeed.com', nombre: 'Santiago Navarro', rol: 'Administrador', activo: true, ultimo_acceso: 'Sesión Activa', password: 'Por Supabase Auth' },
+  { id: 1, email: 'admin@agrifeed.com', nombre: 'Sebastian Navarro', rol: 'Administrador', activo: true, ultimo_acceso: 'Sesión Activa', password: 'Por Supabase Auth' },
   { id: 2, email: 'produccion@agrifeed.com', nombre: 'Auxiliar de Producción', rol: 'Auxiliar de Producción', activo: true, ultimo_acceso: 'Sesión Local', password: 'agrifeed_produccion' },
   { id: 3, email: 'costos@agrifeed.com', nombre: 'Analista de Costos', rol: 'Analista de Costos', activo: true, ultimo_acceso: 'Sesión Local', password: 'agrifeed_costos' },
   { id: 4, email: 'supervisor@agrifeed.com', nombre: 'Supervisor Producción', rol: 'Supervisor Producción', activo: true, ultimo_acceso: 'Sesión Local', password: 'agrifeed_supervisor' },
@@ -41,7 +41,7 @@ const PasswordDisplay = ({ pwd }: { pwd?: string }) => {
 const roles = [
   { nombre: 'Administrador', permisos: 'Acceso total a todos los módulos (Lectura y Escritura).' },
   { nombre: 'Gerencia', permisos: 'Acceso de solo lectura a métricas (Dashboard), Trazabilidad y todos los demás módulos.' },
-  { nombre: 'Analista de Costos', permisos: 'Edita Maestro de Datos. Visibilidad en Dashboard, Producción, Facturación, Despachos, Trazabilidad.' },
+  { nombre: 'Analista de Costos', permisos: 'Acceso total de lectura y escritura a todos los módulos operativos y de facturación. Sin acceso a Administración.' },
   { nombre: 'Auxiliar de Producción', permisos: 'Edita Programación y Maestro. Ve Producción, Despachos, Trazabilidad y el Histórico de Facturación.' },
   { nombre: 'Supervisor Producción', permisos: 'Edita Producción. Visibilidad sobre Programación y el Cuadro de Trazabilidad.' },
   { nombre: 'Auxiliar Logística', permisos: 'Edita Despachos (Logística) y Maestro. Visibilidad sobre Trazabilidad, Producción y Programación.' },
@@ -53,8 +53,8 @@ const roles = [
 // demoAuditLog removed
 
 export default function AdminPage() {
-  const { canView } = usePermissions('admin');
-  const [activeTab, setActiveTab] = useState('usuarios');
+  const { canView, userRole } = usePermissions('admin');
+  const [activeTab, setActiveTab] = useState(userRole === 'Administrador' ? 'usuarios' : 'roles');
 
   if (!canView) return <Navigate to="/" replace />;
 
@@ -142,9 +142,11 @@ export default function AdminPage() {
   return (
     <div>
       <div className="tabs">
-        <button className={`tab ${activeTab === 'usuarios' ? 'active' : ''}`} onClick={() => setActiveTab('usuarios')}>
-          <Users size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} /> Usuarios
-        </button>
+        {userRole === 'Administrador' && (
+          <button className={`tab ${activeTab === 'usuarios' ? 'active' : ''}`} onClick={() => setActiveTab('usuarios')}>
+            <Users size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} /> Usuarios
+          </button>
+        )}
         <button className={`tab ${activeTab === 'roles' ? 'active' : ''}`} onClick={() => setActiveTab('roles')}>
           <Shield size={16} style={{ marginRight: 6, verticalAlign: 'middle' }} /> Roles y Permisos
         </button>
@@ -153,7 +155,7 @@ export default function AdminPage() {
         </button>
       </div>
 
-      {activeTab === 'usuarios' && (
+      {activeTab === 'usuarios' && userRole === 'Administrador' && (
         <>
           <div className="toolbar">
             <div className="toolbar-left">
