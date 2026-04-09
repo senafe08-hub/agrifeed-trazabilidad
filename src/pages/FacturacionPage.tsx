@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Navigate } from 'react-router-dom';
-import { ClipboardList, ShieldCheck, FileCheck, History } from 'lucide-react';
+import { ClipboardList, ShieldCheck, FileCheck, History, BarChart3 } from 'lucide-react';
 import supabase from '../lib/supabase';
 import CreacionPedido from './facturacion/CreacionPedido';
 import CarteraLiberacion from './facturacion/CarteraLiberacion';
 import AsignacionFactura from './facturacion/AsignacionFactura';
 import HistoricoFacturacion from './facturacion/HistoricoFacturacion';
+import DashboardCartera from './facturacion/DashboardCartera';
 import Toast from '../components/Toast';
 import { usePermissions, FacturacionTab } from '../lib/permissions';
 import '../styles/facturacion.css';
@@ -15,6 +16,7 @@ const TABS = [
   { id: 'cartera', label: 'Cartera / Liberación', icon: ShieldCheck },
   { id: 'factura', label: 'Asignación de Factura', icon: FileCheck },
   { id: 'historico', label: 'Histórico', icon: History },
+  { id: 'dashboard_cartera', label: 'Dashboard Cartera', icon: BarChart3 },
 ];
 
 export default function FacturacionPage() {
@@ -149,6 +151,7 @@ export default function FacturacionPage() {
       {activeTab === 'cartera' && <CarteraLiberacion onRefreshKpis={handleRefreshKpis} isAdmin={isAdmin} canEdit={allowedEditTabs.includes('cartera')} />}
       {activeTab === 'factura' && <AsignacionFactura onRefreshKpis={handleRefreshKpis} isAdmin={isAdmin} canEdit={allowedEditTabs.includes('factura')} />}
       {activeTab === 'historico' && <HistoricoFacturacion onRefreshKpis={handleRefreshKpis} isAdmin={isAdmin} canEdit={allowedEditTabs.includes('historico')} />}
+      {activeTab === 'dashboard_cartera' && <DashboardCartera />}
 
       <Toast />
     </div>

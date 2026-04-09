@@ -1,7 +1,7 @@
 // src/lib/permissions.ts
 
 export type ModuleName = 'dashboard' | 'trazabilidad' | 'maestro' | 'programacion' | 'produccion' | 'despachos' | 'facturacion' | 'admin';
-export type FacturacionTab = 'pedido' | 'cartera' | 'factura' | 'historico';
+export type FacturacionTab = 'pedido' | 'cartera' | 'factura' | 'historico' | 'dashboard_cartera';
 
 interface RolePermissions {
   canView: ModuleName[];
@@ -18,15 +18,15 @@ export const ROLE_PERMISSIONS: Record<string, RolePermissions> = {
     canView: ['dashboard', 'trazabilidad', 'maestro', 'programacion', 'produccion', 'despachos', 'facturacion', 'admin'],
     canEdit: ['dashboard', 'trazabilidad', 'maestro', 'programacion', 'produccion', 'despachos', 'facturacion', 'admin'],
     facturacion: {
-      canViewTabs: ['pedido', 'cartera', 'factura', 'historico'],
-      canEditTabs: ['pedido', 'cartera', 'factura', 'historico']
+      canViewTabs: ['pedido', 'cartera', 'factura', 'historico', 'dashboard_cartera'],
+      canEditTabs: ['pedido', 'cartera', 'factura', 'historico', 'dashboard_cartera']
     }
   },
   'Gerencia': {
     canView: ['dashboard', 'trazabilidad', 'maestro', 'programacion', 'produccion', 'despachos', 'facturacion', 'admin'],
     canEdit: [], // No edita nada
     facturacion: {
-      canViewTabs: ['pedido', 'cartera', 'factura', 'historico'],
+      canViewTabs: ['pedido', 'cartera', 'factura', 'historico', 'dashboard_cartera'],
       canEditTabs: []
     }
   },
@@ -34,7 +34,7 @@ export const ROLE_PERMISSIONS: Record<string, RolePermissions> = {
     canView: ['dashboard', 'trazabilidad', 'maestro', 'programacion', 'produccion', 'despachos', 'facturacion'],
     canEdit: ['maestro'],
     facturacion: {
-      canViewTabs: ['pedido', 'cartera', 'factura', 'historico'],
+      canViewTabs: ['pedido', 'cartera', 'factura', 'historico', 'dashboard_cartera'],
       canEditTabs: []
     }
   },
@@ -60,7 +60,7 @@ export const ROLE_PERMISSIONS: Record<string, RolePermissions> = {
     canView: ['programacion', 'trazabilidad', 'despachos', 'facturacion', 'maestro'],
     canEdit: ['maestro', 'facturacion'],
     facturacion: {
-      canViewTabs: ['pedido', 'cartera', 'factura', 'historico'], // "creacion, historial, cartera" + "asignacion (edit)" implies they can see all.
+      canViewTabs: ['pedido', 'cartera', 'factura', 'historico', 'dashboard_cartera'], // "creacion, historial, cartera" + "asignacion (edit)" implies they can see all.
       canEditTabs: ['factura'] // "solo podra editar asignacion de factura"
     }
   },
@@ -68,7 +68,7 @@ export const ROLE_PERMISSIONS: Record<string, RolePermissions> = {
     canView: ['programacion', 'trazabilidad', 'despachos', 'facturacion', 'maestro'],
     canEdit: ['maestro', 'facturacion'],
     facturacion: {
-      canViewTabs: ['cartera', 'factura', 'pedido', 'historico'],  // Added historically needed things
+      canViewTabs: ['cartera', 'factura', 'pedido', 'historico', 'dashboard_cartera'],  // Added historically needed things
       canEditTabs: ['pedido', 'historico'] // "editar asignacion de pedidos (creacion) y anular factura en historico"
     }
   },
@@ -76,8 +76,8 @@ export const ROLE_PERMISSIONS: Record<string, RolePermissions> = {
     canView: ['facturacion'],
     canEdit: ['facturacion'],
     facturacion: {
-      canViewTabs: ['cartera'],
-      canEditTabs: ['cartera']
+      canViewTabs: ['cartera', 'dashboard_cartera'],
+      canEditTabs: ['cartera', 'dashboard_cartera']
     }
   }
 };
