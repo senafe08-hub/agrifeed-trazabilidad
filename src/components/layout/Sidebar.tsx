@@ -131,11 +131,12 @@ export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps)
       <div style={{
         padding: '8px 20px 12px',
         textAlign: 'center',
-        fontSize: '0.7rem',
-        color: 'rgba(255,255,255,0.25)',
+        fontSize: '0.75rem',
+        color: '#10b981',
         letterSpacing: '0.05em',
+        fontWeight: 'bold'
       }}>
-        Agrifeed Trazabilidad v0.1.0
+        Agrifeed Trazabilidad v0.2.1 🚀
       </div>
     </aside>
   );

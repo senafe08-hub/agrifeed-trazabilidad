@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Agrifeed Trazabilidad",
-  "version": "0.1.0",
+  "version": "0.2.1",
   "identifier": "com.agrifeed.trazabilidad",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -27,6 +27,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -46,7 +47,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM4OTE0ODFFRUE1MjdFMkIKUldRcmZsTHFIa2lSeU9yOU0xMURxK1MwR21tL2I4ZVlMSmlaa1dxZEQ1THZHajhzTk8za3c5MEkK",
       "endpoints": [
-        "https://gist.githubusercontent.com/PLACEHOLDER/raw/latest.json"
+        "https://github.com/senafe08-hub/agrifeed-trazabilidad/releases/latest/download/latest.json"
       ]
     }
   }
