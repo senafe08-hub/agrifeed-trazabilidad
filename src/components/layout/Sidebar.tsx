@@ -81,7 +81,7 @@ export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps)
         {navItems.map((section) => {
           const roleData = ROLE_PERMISSIONS[userRole] || { canView: [] };
           const isRoleAdmin = userRole === 'Administrador';
-          
+
           const filteredItems = section.items.filter(item => {
             const moduleName = item.path === '/' ? 'dashboard' : item.path.substring(1);
             return isRoleAdmin || roleData.canView.includes(moduleName as any);
@@ -136,7 +136,7 @@ export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps)
         letterSpacing: '0.05em',
         fontWeight: 'bold'
       }}>
-        Agrifeed Trazabilidad v0.2.3 🚀
+        Agrifeed Trazabilidad v0.2.4 🚀
       </div>
     </aside>
   );

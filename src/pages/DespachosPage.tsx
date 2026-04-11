@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, useCallback, Fragment, useRef } from 'react';
-import { Plus, Search, Edit2, Trash2, Download, ChevronLeft, ChevronRight, X, Truck, FileText, Package, ChevronRight as ChevronR, Upload, Printer, Calendar } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Download, ChevronLeft, ChevronRight, X, Truck, FileText, Package, ChevronRight as ChevronR, Upload, Printer, Calendar, Boxes } from 'lucide-react';
 import { fetchDespachos, createDespacho, updateDespacho, softDeleteDespacho, supabase } from '../lib/supabase';
 import DespachoHeaderForm from '../components/DespachoHeaderForm';
 import DetalleOPList from '../components/DetalleOPList';
+import InventarioMPPanel from '../components/InventarioMPPanel';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -16,6 +17,7 @@ const PAGE_SIZE = 100;
 
 export default function DespachosPage() {
   const { canView, canEdit } = usePermissions('despachos');
+  const [mainTab, setMainTab] = useState<'despachos' | 'inventario'>('despachos');
 
   // Data
   const [despachos, setDespachos] = useState<any[]>([]);
@@ -521,6 +523,19 @@ export default function DespachosPage() {
 
   return (
     <div>
+      {/* Main Tabs: Despachos | Inventario MP */}
+      <div className="tabs" style={{ marginBottom: 20 }}>
+        <button className={`tab ${mainTab === 'despachos' ? 'active' : ''}`} onClick={() => setMainTab('despachos')} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Truck size={16} /> Despachos
+        </button>
+        <button className={`tab ${mainTab === 'inventario' ? 'active' : ''}`} onClick={() => setMainTab('inventario')} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Boxes size={16} /> Inventario MP
+        </button>
+      </div>
+
+      {mainTab === 'inventario' && <InventarioMPPanel canEdit={canEdit} />}
+
+      {mainTab === 'despachos' && <>
       {/* KPI Summary Strip */}
       <div className="despachos-kpi-strip">
         <div className="despachos-kpi">
@@ -792,6 +807,7 @@ export default function DespachosPage() {
         </div>
       </div>
       <Toast />
+      </>}
     </div>
   );
 }

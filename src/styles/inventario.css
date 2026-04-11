@@ -1,0 +1,224 @@
+/* ═══ Inventario MP Styles ═══ */
+
+.inv-tabs {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-card);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 20px;
+  border: 1px solid var(--border-color);
+}
+.inv-tab {
+  flex: 1;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.inv-tab:hover { background: rgba(46, 125, 50, 0.06); color: var(--text-primary); }
+.inv-tab.active {
+  background: linear-gradient(135deg, #2E7D32, #43A047);
+  color: white;
+  box-shadow: 0 2px 8px rgba(46, 125, 50, 0.3);
+}
+
+/* ── KPI Strip ── */
+.inv-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.inv-kpi {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 16px 18px;
+  transition: all 0.15s;
+  cursor: pointer;
+}
+.inv-kpi:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  border-color: rgba(46, 125, 50, 0.4);
+}
+.inv-kpi.active {
+  border-color: #2E7D32;
+  background: rgba(46, 125, 50, 0.04);
+  box-shadow: 0 4px 12px rgba(46, 125, 50, 0.1);
+}
+.inv-kpi-icon {
+  width: 42px; height: 42px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.inv-kpi-icon.total { background: linear-gradient(135deg, #1565C0, #42A5F5); color: white; }
+.inv-kpi-icon.alert { background: linear-gradient(135deg, #E53935, #EF5350); color: white; }
+.inv-kpi-icon.warn { background: linear-gradient(135deg, #F57F17, #FFC107); color: white; }
+.inv-kpi-icon.ok { background: linear-gradient(135deg, #2E7D32, #66BB6A); color: white; }
+.inv-kpi-icon.entradas { background: linear-gradient(135deg, #6A1B9A, #AB47BC); color: white; }
+.inv-kpi-info { display: flex; flex-direction: column; }
+.inv-kpi-label { font-size: 0.75rem; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.03em; }
+.inv-kpi-value { font-size: 1.3rem; font-weight: 700; color: var(--text-primary); line-height: 1.2; }
+
+/* ── Semáforo de Cobertura ── */
+.cobertura-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.cobertura-badge.critico {
+  background: rgba(229, 57, 53, 0.12);
+  color: #C62828;
+  border: 1px solid rgba(229, 57, 53, 0.25);
+}
+.cobertura-badge.alerta {
+  background: rgba(245, 127, 23, 0.12);
+  color: #E65100;
+  border: 1px solid rgba(245, 127, 23, 0.25);
+}
+.cobertura-badge.ok {
+  background: rgba(46, 125, 50, 0.10);
+  color: #2E7D32;
+  border: 1px solid rgba(46, 125, 50, 0.2);
+}
+.cobertura-badge.sin-ref {
+  background: rgba(120, 120, 120, 0.08);
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+}
+
+/* ── Pendiente badge ── */
+.pendiente-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.pendiente-badge.needs {
+  background: rgba(229, 57, 53, 0.10);
+  color: #C62828;
+}
+.pendiente-badge.ok {
+  color: var(--text-muted);
+}
+
+/* ── Mes Selector ── */
+.inv-mes-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 6px 14px;
+  height: 40px;
+}
+.inv-mes-selector select,
+.inv-mes-selector input {
+  border: none;
+  background: transparent;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  outline: none;
+  cursor: pointer;
+}
+.inv-mes-selector select { min-width: 100px; }
+
+/* ── Stock Inicial Form ── */
+.stock-form-grid {
+  display: grid;
+  grid-template-columns: 80px 1fr 120px 120px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+.stock-form-grid:last-child { border-bottom: none; }
+.stock-form-grid input {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  font-size: 0.85rem;
+  background: var(--bg-app);
+}
+.stock-form-grid input:focus {
+  border-color: #43A047;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(67, 160, 71, 0.15);
+}
+
+/* ── Tabla Consumo Semanal (expandible) ── */
+.consumo-semanal-bar {
+  display: flex;
+  gap: 2px;
+  height: 20px;
+  min-width: 120px;
+}
+.consumo-semanal-bar .sem-block {
+  flex: 1;
+  border-radius: 3px;
+  background: rgba(46, 125, 50, 0.15);
+  position: relative;
+  transition: background 0.2s;
+  cursor: default;
+}
+.consumo-semanal-bar .sem-block.active {
+  background: linear-gradient(135deg, #43A047, #66BB6A);
+}
+.consumo-semanal-bar .sem-block:hover {
+  opacity: 0.8;
+}
+
+/* ── Toolbar inventario ── */
+.inv-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.inv-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.inv-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Import section ── */
+.inv-import-notice {
+  padding: 12px 16px;
+  background: rgba(46, 125, 50, 0.06);
+  border: 1px solid rgba(46, 125, 50, 0.15);
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
