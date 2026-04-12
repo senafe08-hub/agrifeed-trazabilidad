@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -10,6 +11,8 @@ import {
   Settings,
   LogOut,
   ChevronRight,
+  ChevronLeft,
+  Menu
 } from 'lucide-react';
 import { ROLE_PERMISSIONS } from '../../lib/permissions';
 
@@ -48,6 +51,7 @@ interface SidebarProps {
 
 export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps) {
   const location = useLocation();
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   const getInitials = (email: string) => {
     const name = email.split('@')[0];
@@ -55,7 +59,15 @@ export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps)
   };
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
+      <button
+        className="sidebar-toggle"
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        title={isCollapsed ? 'Expandir menú' : 'Contraer menú'}
+      >
+        {isCollapsed ? <Menu size={16} /> : <ChevronLeft size={16} />}
+      </button>
+
       <div className="sidebar-brand">
         <div style={{
           width: 40,
@@ -121,22 +133,23 @@ export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps)
         </div>
         <button
           onClick={onLogout}
-          className="btn-icon"
+          className="btn-icon btn-icon-logout"
           style={{ color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', cursor: 'pointer' }}
           title="Cerrar sesión"
         >
           <LogOut size={18} />
         </button>
       </div>
-      <div style={{
+      <div className="version-text" style={{
         padding: '8px 20px 12px',
         textAlign: 'center',
         fontSize: '0.75rem',
         color: '#10b981',
         letterSpacing: '0.05em',
-        fontWeight: 'bold'
+        fontWeight: 'bold',
+        whiteSpace: 'nowrap'
       }}>
-        Agrifeed Trazabilidad v0.2.4 🚀
+        Agrifeed v0.2.5 🚀
       </div>
     </aside>
   );

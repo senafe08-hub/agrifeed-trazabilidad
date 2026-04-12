@@ -1,6 +1,6 @@
 // src/lib/permissions.ts
 
-export type ModuleName = 'dashboard' | 'trazabilidad' | 'maestro' | 'programacion' | 'produccion' | 'despachos' | 'facturacion' | 'admin';
+export type ModuleName = 'dashboard' | 'trazabilidad' | 'maestro' | 'programacion' | 'formulacion' | 'produccion' | 'despachos' | 'facturacion' | 'admin';
 export type FacturacionTab = 'pedido' | 'cartera' | 'factura' | 'historico' | 'dashboard_cartera';
 
 interface RolePermissions {
@@ -15,15 +15,15 @@ interface RolePermissions {
 // User-provided mapping rules:
 export const ROLE_PERMISSIONS: Record<string, RolePermissions> = {
   'Administrador': {
-    canView: ['dashboard', 'trazabilidad', 'maestro', 'programacion', 'produccion', 'despachos', 'facturacion', 'admin'],
-    canEdit: ['dashboard', 'trazabilidad', 'maestro', 'programacion', 'produccion', 'despachos', 'facturacion', 'admin'],
+    canView: ['dashboard', 'trazabilidad', 'maestro', 'programacion', 'formulacion', 'produccion', 'despachos', 'facturacion', 'admin'],
+    canEdit: ['dashboard', 'trazabilidad', 'maestro', 'programacion', 'formulacion', 'produccion', 'despachos', 'facturacion', 'admin'],
     facturacion: {
       canViewTabs: ['pedido', 'cartera', 'factura', 'historico', 'dashboard_cartera'],
       canEditTabs: ['pedido', 'cartera', 'factura', 'historico', 'dashboard_cartera']
     }
   },
   'Gerencia': {
-    canView: ['dashboard', 'trazabilidad', 'maestro', 'programacion', 'produccion', 'despachos', 'facturacion', 'admin'],
+    canView: ['dashboard', 'trazabilidad', 'maestro', 'programacion', 'formulacion', 'produccion', 'despachos', 'facturacion', 'admin'],
     canEdit: [], // No edita nada
     facturacion: {
       canViewTabs: ['pedido', 'cartera', 'factura', 'historico', 'dashboard_cartera'],
@@ -31,16 +31,16 @@ export const ROLE_PERMISSIONS: Record<string, RolePermissions> = {
     }
   },
   'Analista de Costos': {
-    canView: ['dashboard', 'trazabilidad', 'maestro', 'programacion', 'produccion', 'despachos', 'facturacion'],
-    canEdit: ['dashboard', 'trazabilidad', 'maestro', 'programacion', 'produccion', 'despachos', 'facturacion'],
+    canView: ['dashboard', 'trazabilidad', 'maestro', 'programacion', 'formulacion', 'produccion', 'despachos', 'facturacion'],
+    canEdit: ['dashboard', 'trazabilidad', 'maestro', 'programacion', 'formulacion', 'produccion', 'despachos', 'facturacion'],
     facturacion: {
       canViewTabs: ['pedido', 'cartera', 'factura', 'historico', 'dashboard_cartera'],
       canEditTabs: ['pedido', 'cartera', 'factura', 'historico', 'dashboard_cartera']
     }
   },
   'Auxiliar de Producción': {
-    canView: ['trazabilidad', 'produccion', 'despachos', 'facturacion', 'programacion', 'maestro'],
-    canEdit: ['programacion', 'maestro'],
+    canView: ['trazabilidad', 'produccion', 'despachos', 'facturacion', 'programacion', 'formulacion', 'maestro'],
+    canEdit: ['programacion', 'formulacion', 'maestro'],
     facturacion: {
       canViewTabs: ['historico'],
       canEditTabs: []
@@ -68,8 +68,16 @@ export const ROLE_PERMISSIONS: Record<string, RolePermissions> = {
     canView: ['programacion', 'trazabilidad', 'despachos', 'facturacion', 'maestro'],
     canEdit: ['maestro', 'facturacion'],
     facturacion: {
-      canViewTabs: ['cartera', 'factura', 'pedido', 'historico', 'dashboard_cartera'],  // Added historically needed things
-      canEditTabs: ['pedido', 'historico'] // "editar asignacion de pedidos (creacion) y anular factura en historico"
+      canViewTabs: ['cartera', 'factura', 'pedido', 'historico', 'dashboard_cartera'],
+      canEditTabs: ['pedido', 'historico']
+    }
+  },
+  'Coordinador PICIZ': {
+    canView: ['dashboard', 'trazabilidad', 'maestro', 'programacion', 'formulacion', 'produccion', 'despachos', 'facturacion', 'admin'],
+    canEdit: [], // Globally NO EDIT access
+    facturacion: {
+      canViewTabs: ['pedido', 'cartera', 'factura', 'historico', 'dashboard_cartera'],
+      canEditTabs: [] // Special override is applied natively inside HistoricoFacturacion.tsx
     }
   },
   'Analista de Cartera': {

@@ -415,7 +415,6 @@ export default function InventarioMPPanel({ canEdit }: Props) {
   };
 
   const handleDeleteEntrada = async (id: number) => {
-    if (!confirm('¿Eliminar esta entrada?')) return;
     try { await deleteInventarioEntrada(id); toast.success('Entrada eliminada'); loadEntradas(); } catch (e: any) { toast.error(e.message); }
   };
 
@@ -497,17 +496,17 @@ export default function InventarioMPPanel({ canEdit }: Props) {
   );
 
   // ═══════════════════════════════════════════════════════
-  //  TAB: TRASLADOS
+  //  TAB: SALIDAS / MERMAS (Anteriormente Traslados)
   // ═══════════════════════════════════════════════════════
   const handleSaveTraslado = async () => {
-    if (!trasladoForm.cliente_op) return toast.error('Cliente-OP es requerido');
+    if (!trasladoForm.cliente_op) return toast.error('El Motivo / Referencia es requerido');
     
     const validMats = trasladoForm.materiales.filter(m => m.material_id && m.cantidad_kg);
     if (validMats.length === 0) return toast.error('Debes agregar al menos un material con cantidad');
 
     try {
       if (trasladoForm.id) {
-        if (validMats.length > 1) return toast.error("Al editar un traslado existente, no puedes añadir múltiples filas. Edita solo el material que estabas modificando, o bórralo y agrégalo de nuevo.");
+        if (validMats.length > 1) return toast.error("Al editar un registro existente, no puedes añadir múltiples filas. Edita solo el material que estabas modificando, o bórralo y agrégalo de nuevo.");
         await updateInventarioTraslado(trasladoForm.id, {
           fecha: trasladoForm.fecha,
           cliente_op: trasladoForm.cliente_op,
@@ -516,7 +515,7 @@ export default function InventarioMPPanel({ canEdit }: Props) {
           semana: Number(trasladoForm.semana),
           observaciones: trasladoForm.observaciones || undefined
         });
-        toast.success(`Traslado actualizado`);
+        toast.success(`Ajuste actualizado`);
       } else {
         const payload = validMats.map(m => ({
           fecha: trasladoForm.fecha,
@@ -529,7 +528,7 @@ export default function InventarioMPPanel({ canEdit }: Props) {
           observaciones: trasladoForm.observaciones || undefined
         }));
         await createInventarioTrasladoBatch(payload);
-        toast.success(`${payload.length} traslados registrados`);
+        toast.success(`${payload.length} salidas registradas`);
       }
       setShowTrasladoForm(false);
       setTrasladoForm({ id: 0, fecha: now.toISOString().split('T')[0], cliente_op: '', semana: '1', observaciones: '', materiales: [{ material_id: '', cantidad_kg: '' }] });
@@ -538,8 +537,7 @@ export default function InventarioMPPanel({ canEdit }: Props) {
   };
 
   const handleDeleteTraslado = async (id: number) => {
-    if (!confirm('¿Eliminar este traslado?')) return;
-    try { await deleteInventarioTraslado(id); toast.success('Traslado eliminado'); loadTraslados(); } catch (e: any) { toast.error(e.message); }
+    try { await deleteInventarioTraslado(id); toast.success('Registro eliminado'); loadTraslados(); } catch (e: any) { toast.error(e.message); }
   };
 
   const filteredTraslados = useMemo(() => {
@@ -553,19 +551,19 @@ export default function InventarioMPPanel({ canEdit }: Props) {
       <div className="inv-toolbar">
         <div className="inv-toolbar-left">
           <MesSelector />
-          <div className="search-box"><Search size={18} /><input type="text" className="form-input" placeholder="Buscar material o cliente-OP..." value={trasladosSearch} onChange={e => { setTrasladosSearch(e.target.value); setTrasladosPage(1); }} style={{ paddingLeft: 40, width: 300 }} /></div>
+          <div className="search-box"><Search size={18} /><input type="text" className="form-input" placeholder="Buscar material o motivo..." value={trasladosSearch} onChange={e => { setTrasladosSearch(e.target.value); setTrasladosPage(1); }} style={{ paddingLeft: 40, width: 300 }} /></div>
         </div>
         <div className="inv-toolbar-right">
-          {canEdit && <button className="btn btn-primary btn-sm" onClick={() => setShowTrasladoForm(true)}><Plus size={16} /> Nuevo Traslado</button>}
+          {canEdit && <button className="btn btn-primary btn-sm" onClick={() => setShowTrasladoForm(true)}><Plus size={16} /> Nueva Salida / Ajuste</button>}
         </div>
       </div>
       {showTrasladoForm && (
         <div className="card" style={{ marginBottom: 16, overflow: 'visible' }}>
-          <div className="card-header"><span className="card-title">{trasladoForm.id ? 'Editar Traslado' : 'Registrar Traslado (OP)'}</span><button className="btn btn-outline btn-sm" onClick={() => setShowTrasladoForm(false)}>Cancelar</button></div>
+          <div className="card-header"><span className="card-title">{trasladoForm.id ? 'Editar Salida' : 'Registrar Salida / Ajuste'}</span><button className="btn btn-outline btn-sm" onClick={() => setShowTrasladoForm(false)}>Cancelar</button></div>
           <div className="card-body">
             <div className="grid-4" style={{ gap: 12, marginBottom: 16 }}>
               <div className="form-group"><label className="form-label">Fecha</label><input type="date" className="form-input" value={trasladoForm.fecha} onChange={e => setTrasladoForm(p => ({ ...p, fecha: e.target.value }))} /></div>
-              <div className="form-group"><label className="form-label">Cliente-OP</label><input type="text" className="form-input" placeholder="Ej: CAPADOCIA OP1-10" value={trasladoForm.cliente_op} onChange={e => setTrasladoForm(p => ({ ...p, cliente_op: e.target.value }))} /></div>
+              <div className="form-group"><label className="form-label">Motivo / Ref.</label><input type="text" className="form-input" placeholder="Ej: Merma, Ajuste Manual..." value={trasladoForm.cliente_op} onChange={e => setTrasladoForm(p => ({ ...p, cliente_op: e.target.value }))} /></div>
               <div className="form-group"><label className="form-label">Semana</label>
                 <select className="form-input" value={trasladoForm.semana} onChange={e => setTrasladoForm(p => ({ ...p, semana: e.target.value }))}>
                   {[1,2,3,4,5].map(s => <option key={s} value={s}>Semana {s}</option>)}
@@ -576,7 +574,7 @@ export default function InventarioMPPanel({ canEdit }: Props) {
             
             <div style={{ padding: '12px', background: 'rgba(46,125,50,0.03)', borderRadius: '8px', border: '1px dashed var(--border-color)', position: 'relative', zIndex: 100 }}>
               <div style={{ marginBottom: '10px', fontWeight: 600, fontSize: '0.9rem', display: 'flex', justifyContent: 'space-between' }}>
-                <span>Materiales a trasladar</span>
+                <span>Materiales dados de baja</span>
                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 400 }}>{trasladoForm.id ? 'Editando 1 material' : 'Puedes añadir varios materiales.'}</span>
               </div>
               {trasladoForm.materiales.map((mat, idx) => (
@@ -611,16 +609,16 @@ export default function InventarioMPPanel({ canEdit }: Props) {
               </div>}
             </div>
             
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}><button className="btn btn-primary" onClick={handleSaveTraslado}>Guardar Traslado</button></div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}><button className="btn btn-primary" onClick={handleSaveTraslado}>Guardar Salida</button></div>
           </div>
         </div>
       )}
       <div className="card"><div className="card-body p-0"><div className="data-table-wrapper">
         <table className="data-table w-full">
-          <thead><tr><th>Fecha</th><th>Cliente-OP</th><th>Código</th><th>Material</th><th style={{ textAlign: 'right' }}>Cantidad (kg)</th><th style={{ textAlign: 'center' }}>Semana</th>{canEdit && <th style={{ width: 60 }}>Acc.</th>}</tr></thead>
+          <thead><tr><th>Fecha</th><th>Motivo / Ref.</th><th>Código</th><th>Material</th><th style={{ textAlign: 'right' }}>Cantidad (kg)</th><th style={{ textAlign: 'center' }}>Semana</th>{canEdit && <th style={{ width: 60 }}>Acc.</th>}</tr></thead>
           <tbody>
             {loadingTraslados ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: 32 }}>⏳ Cargando...</td></tr> :
-            filteredTraslados.length === 0 ? <tr><td colSpan={7}><div className="empty-state"><ArrowUpCircle size={40} /><p>Sin traslados para {MESES[mes-1]} {anio}</p></div></td></tr> :
+            filteredTraslados.length === 0 ? <tr><td colSpan={7}><div className="empty-state"><ArrowUpCircle size={40} /><p>Sin salidas / mermas para {MESES[mes-1]} {anio}</p></div></td></tr> :
             filteredTraslados.slice((trasladosPage - 1) * ITEMS_PER_PAGE, trasladosPage * ITEMS_PER_PAGE).map((t: any) => (
               <tr key={t.id}>
                 <td>{t.fecha}</td>
@@ -644,7 +642,7 @@ export default function InventarioMPPanel({ canEdit }: Props) {
         </table>
       </div>
       <div className="pagination" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span>Mostrando {(trasladosPage - 1) * ITEMS_PER_PAGE + 1} - {Math.min(trasladosPage * ITEMS_PER_PAGE, filteredTraslados.length)} de {filteredTraslados.length} traslados</span>
+        <span>Mostrando {(trasladosPage - 1) * ITEMS_PER_PAGE + 1} - {Math.min(trasladosPage * ITEMS_PER_PAGE, filteredTraslados.length)} de {filteredTraslados.length} salidas/ajustes</span>
         {filteredTraslados.length > ITEMS_PER_PAGE && (
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-outline btn-sm" disabled={trasladosPage === 1} onClick={() => setTrasladosPage(p => p - 1)}>Anterior</button>
@@ -680,7 +678,6 @@ export default function InventarioMPPanel({ canEdit }: Props) {
   };
 
   const handleDeleteMat = async (id: number) => {
-    if (!confirm('¿Eliminar este material?')) return;
     try { await deleteInventarioMaterial(id); toast.success('Material eliminado'); loadMateriales(); } catch (e: any) { toast.error(e.message); }
   };
 
@@ -922,7 +919,7 @@ export default function InventarioMPPanel({ canEdit }: Props) {
       <div className="inv-tabs">
         <button className={`inv-tab ${activeTab === 'panel' ? 'active' : ''}`} onClick={() => setActiveTab('panel')}><Package size={16} /> Panel Inventario</button>
         <button className={`inv-tab ${activeTab === 'entradas' ? 'active' : ''}`} onClick={() => setActiveTab('entradas')}><ArrowDownCircle size={16} /> Entradas</button>
-        <button className={`inv-tab ${activeTab === 'traslados' ? 'active' : ''}`} onClick={() => setActiveTab('traslados')}><ArrowUpCircle size={16} /> Traslados</button>
+        <button className={`inv-tab ${activeTab === 'traslados' ? 'active' : ''}`} onClick={() => setActiveTab('traslados')}><ArrowUpCircle size={16} /> Salidas / Mermas</button>
         <button className={`inv-tab ${activeTab === 'stock_inicial' ? 'active' : ''}`} onClick={() => setActiveTab('stock_inicial')}><Calendar size={16} /> Stock Inicial</button>
         <button className={`inv-tab ${activeTab === 'catalogo' ? 'active' : ''}`} onClick={() => setActiveTab('catalogo')}><BookOpen size={16} /> Catálogo</button>
       </div>

@@ -150,7 +150,7 @@ export default function FacturacionPage() {
       {activeTab === 'pedido' && <CreacionPedido onRefreshKpis={handleRefreshKpis} isAdmin={isAdmin} canEdit={allowedEditTabs.includes('pedido')} />}
       {activeTab === 'cartera' && <CarteraLiberacion onRefreshKpis={handleRefreshKpis} isAdmin={isAdmin} canEdit={allowedEditTabs.includes('cartera')} />}
       {activeTab === 'factura' && <AsignacionFactura onRefreshKpis={handleRefreshKpis} isAdmin={isAdmin} canEdit={allowedEditTabs.includes('factura')} />}
-      {activeTab === 'historico' && <HistoricoFacturacion onRefreshKpis={handleRefreshKpis} isAdmin={isAdmin} canEdit={allowedEditTabs.includes('historico')} />}
+      {activeTab === 'historico' && <HistoricoFacturacion onRefreshKpis={handleRefreshKpis} isAdmin={isAdmin} canEdit={allowedEditTabs.includes('historico')} userRole={userRole} />}
       {activeTab === 'dashboard_cartera' && <DashboardCartera />}
 
       <Toast />

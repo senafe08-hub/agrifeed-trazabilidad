@@ -54,8 +54,9 @@ if ($LASTEXITCODE -ne 0) {
 
 # --- 4. Ubicar los archivos generados ---
 $bundleDir = Join-Path $PSScriptRoot "src-tauri\target\release\bundle\nsis"
-$installerExe = Get-ChildItem -Path $bundleDir -Filter "*-setup.exe" | Select-Object -First 1
-$signatureFile = Get-ChildItem -Path $bundleDir -Filter "*-setup.exe.sig" | Select-Object -First 1
+$expectedName = "Agrifeed Trazabilidad_${version}_x64-setup.exe"
+$installerExe = Get-ChildItem -Path $bundleDir -Filter $expectedName | Select-Object -First 1
+$signatureFile = Get-ChildItem -Path $bundleDir -Filter "${expectedName}.sig" | Select-Object -First 1
 
 if (-not $installerExe -or -not $signatureFile) {
     Write-Host "[ERROR] No se encontraron los archivos esperados (.exe o .sig) en el target." -ForegroundColor Red
@@ -79,7 +80,7 @@ Copy-Item $signatureFile.FullName $destSigPath -Force
 # --- 6. Generar latest.json (UTF-8 sin BOM) ---
 Write-Host "[JSON]  Construyendo archivo de actualizacion en la nube..." -ForegroundColor Yellow
 $sigContent = Get-Content $destSigPath -Raw
-$url = "https://github.com/senafe08-hub/agrifeed-trazabilidad/releases/download/v$version/"
+$url = "https://github.com/senafe08-hub/agrifeed-trazabilidad/releases/download/v$version/$destExeName"
 
 $json = @{
     version = $version

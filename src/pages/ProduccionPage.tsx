@@ -16,7 +16,7 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
   const { canView, canEdit } = usePermissions('produccion');
 
   // Tabs & Turno Report
-  const [activeTab, setActiveTab] = useState<'registros' | 'reporte' | 'estado_ops'>('registros');
+  const [activeTab, setActiveTab] = useState<'registros' | 'reporte' | 'estado_ops' | 'reporte_explosion'>('registros');
   const [reportMode, setReportMode] = useState<'lista' | 'nuevo' | 'detalle' | 'editar_detalle'>('lista');
   const [historialReportes, setHistorialReportes] = useState<any[]>([]);
   const [reporteFecha, setReporteFecha] = useState(new Date().toISOString().split('T')[0]);
@@ -42,7 +42,7 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-filled OP info
-  const [opInfo, setOpInfo] = useState({ alimento: '', cliente: '', programado: 0, acumulado: 0, pendiente: 0 });
+  const [opInfo, setOpInfo] = useState<{ alimento: string; cliente: string; programado: number; acumulado: number; pendiente: number; bachesProgramados: number; bachesAcumulados: number; bachesPendiente: number }>({ alimento: '', cliente: '', programado: 0, acumulado: 0, pendiente: 0, bachesProgramados: 0, bachesAcumulados: 0, bachesPendiente: 0 });
 
   // Masters for dropdowns
   const [lotes, setLotes] = useState<any[]>([]);
@@ -70,6 +70,14 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
   const [reportFilterDesde, setReportFilterDesde] = useState('');
   const [reportFilterHasta, setReportFilterHasta] = useState('');
 
+  // Explosion Report UI
+  const [explosionDesde, setExplosionDesde] = useState(new Date().toISOString().split('T')[0]);
+  const [explosionHasta, setExplosionHasta] = useState(new Date().toISOString().split('T')[0]);
+  const [explosionLoading, setExplosionLoading] = useState(false);
+  const [explosionData, setExplosionData] = useState<any[]>([]);
+  const [explosionDetalle, setExplosionDetalle] = useState<any[]>([]);
+  const [explosionOps, setExplosionOps] = useState<any[]>([]);
+
   // Fetch masters & data
   useEffect(() => {
     fetchMaestros();
@@ -77,7 +85,7 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
   }, []);
 
   const fetchMaestros = async () => {
-    const { data: l } = await supabase.from('programacion').select('lote, bultos_programados, maestro_alimentos(descripcion), maestro_clientes(nombre)').order('fecha', { ascending: false }).limit(10000);
+    const { data: l } = await supabase.from('programacion').select('lote, num_baches, bultos_programados, maestro_alimentos(descripcion), maestro_clientes(nombre)').order('fecha', { ascending: false }).limit(10000);
     if (l) setLotes(l);
   };
 
@@ -86,7 +94,7 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
     const { data: rawData, error } = await supabase
       .from('produccion')
       .select(`
-        id, fecha_produccion, turno, lote, bultos_entregados, observaciones,
+        id, fecha_produccion, turno, lote, bultos_entregados, baches_entregados, observaciones,
         programacion(fecha, codigo_sap, maestro_alimentos(descripcion, categoria), maestro_clientes(nombre))
       `)
       .order('fecha_produccion', { ascending: false })
@@ -110,6 +118,7 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
           alimento: alimentoInfo.descripcion || 'Sin alimento',
           categoria: alimentoInfo.categoria || 'Sin Categoría',
           cliente: clienteInfo.nombre || 'Sin cliente',
+          baches: (item as any).baches_entregados || 0,
           bultos: item.bultos_entregados,
           kg: (item.bultos_entregados || 0) * 40,
           observaciones: item.observaciones,
@@ -228,13 +237,14 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
         fecha_produccion: item.fecha_produccion,
         turno: item.turno,
         lote: item.lote,
+        baches_entregados: item.baches,
         bultos_entregados: item.bultos,
         observaciones: item.observaciones,
       });
     } else {
       setFormMode('crear');
       setEditingId(null);
-      setFormData({ fecha_produccion: new Date().toISOString().split('T')[0], turno: 'Diurno' });
+      setFormData({ fecha_produccion: new Date().toISOString().split('T')[0], turno: 'Diurno', baches_entregados: '', bultos_entregados: '' });
     }
     setShowForm(true);
   };
@@ -248,18 +258,21 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
   useEffect(() => {
     const loadOpInfo = async () => {
       if (!formData.lote) {
-        setOpInfo({ alimento: '', cliente: '', programado: 0, acumulado: 0, pendiente: 0 });
+        setOpInfo({ alimento: '', cliente: '', programado: 0, acumulado: 0, pendiente: 0, bachesProgramados: 0, bachesAcumulados: 0, bachesPendiente: 0 });
         return;
       }
       const loteObj = lotes.find(l => String(l.lote) === String(formData.lote));
       const alimentoDesc = loteObj?.maestro_alimentos ? (Array.isArray(loteObj.maestro_alimentos) ? loteObj.maestro_alimentos[0]?.descripcion : loteObj.maestro_alimentos?.descripcion) : '';
       const clienteNombre = loteObj?.maestro_clientes ? (Array.isArray(loteObj.maestro_clientes) ? loteObj.maestro_clientes[0]?.nombre : loteObj.maestro_clientes?.nombre) : '';
       const programado = loteObj?.bultos_programados || 0;
+      const bachesProgramados = loteObj?.num_baches || 0;
 
-      const query = await supabase.from('produccion').select('bultos_entregados, id').eq('lote', formData.lote);
+      const query = await supabase.from('produccion').select('baches_entregados, bultos_entregados, id').eq('lote', formData.lote);
       let acumulado = 0;
+      let bachesAcumulados = 0;
       if (query.data) {
         acumulado = query.data.filter(r => r.id !== editingId).reduce((sum, r) => sum + (r.bultos_entregados || 0), 0);
+        bachesAcumulados = query.data.filter(r => r.id !== editingId).reduce((sum, r) => sum + (r.baches_entregados || 0), 0);
       }
       
       setOpInfo({
@@ -267,7 +280,10 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
         cliente: clienteNombre || 'Sin asignar',
         programado,
         acumulado,
-        pendiente: programado - acumulado
+        pendiente: programado - acumulado,
+        bachesProgramados,
+        bachesAcumulados,
+        bachesPendiente: bachesProgramados - bachesAcumulados
       });
     };
     if (showForm) loadOpInfo();
@@ -286,25 +302,31 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
     e.preventDefault();
     if (!canEdit) return;
     setSaving(true);
-    if (!formData.fecha_produccion || !formData.turno || !formData.lote || !formData.bultos_entregados) {
+    if (!formData.fecha_produccion || !formData.turno || !formData.lote || !formData.baches_entregados || !formData.bultos_entregados) {
       alert("Faltan campos obligatorios");
       setSaving(false);
       return;
     }
 
     const bultos = Number(formData.bultos_entregados);
-    if (opInfo.programado > 0) {
-      const maxPermitido = opInfo.programado * 1.05;
-      if (opInfo.acumulado + bultos > maxPermitido) {
-        alert(`No puedes entregar esta cantidad porque supera el límite del +5% de lo programado.\nProgramado: ${opInfo.programado}\nMáximo permitido: ${Math.floor(maxPermitido)}\nAcumulado previo: ${opInfo.acumulado}\nTu entrega de ${bultos} daría un total de ${opInfo.acumulado + bultos}`);
+    const baches = Number(formData.baches_entregados);
+
+    if (opInfo.bachesProgramados > 0) {
+      if (opInfo.bachesAcumulados + baches > opInfo.bachesProgramados) {
+        alert(`No puedes entregar esta cantidad porque supera los baches programados para la OP.\nBaches Programados: ${opInfo.bachesProgramados}\nBaches Acumulados previamente: ${opInfo.bachesAcumulados}\nTu entrega de ${baches} daría un total de ${opInfo.bachesAcumulados + baches} baches que excede el límite.`);
         setSaving(false);
         return;
       }
     }
-    if (opInfo.pendiente > 0 && opInfo.pendiente < bultos) {
-      if (!window.confirm("Los bultos entregados superan la cantidad programada pendiente original (pero dentro del 5% permitido). ¿Deseas guardar de todos modos?")) {
-        setSaving(false);
-        return;
+
+    if (opInfo.bachesProgramados > 0 && opInfo.programado > 0 && baches > 0) {
+      const yieldPerBatch = opInfo.programado / opInfo.bachesProgramados;
+      const expectedSacks = Math.round(yieldPerBatch * baches);
+      if (Math.abs(bultos - expectedSacks) > expectedSacks * 0.1) {
+        if (!window.confirm(`⚠️ ADVERTENCIA ANORMAL\nEsta OP rinde aprox. ${Math.round(yieldPerBatch)} bultos por bache.\nAl entregar ${baches} baches, se esperaban ~${expectedSacks} bultos totales, pero reportaste ${bultos} bultos.\n\n¿Estás completamente seguro de que este valor desfasado es correcto?`)) {
+          setSaving(false);
+          return;
+        }
       }
     }
 
@@ -312,7 +334,7 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
       if (formMode === 'crear') {
         const { error } = await supabase.from('produccion').insert([formData]);
         if (error) throw error;
-        await registrarAuditoria('CREATE', 'Producción', `Se registró entrega de ${formData.bultos_entregados} bultos para el lote ${formData.lote}`);
+        await registrarAuditoria('CREATE', 'Producción', `Se registró entrega de ${formData.baches_entregados} baches (${formData.bultos_entregados} bultos) para el lote ${formData.lote}`);
       } else {
         const { error } = await supabase.from('produccion').update(formData).eq('id', editingId);
         if (error) throw error;
@@ -373,19 +395,22 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
     return filtered.slice(start, start + PAGE_SIZE);
   }, [filtered, currentPage]);
 
-  // RESUMEN OPs PARA EL DASHBOARD DE ESTADO
   const opsResumen = useMemo(() => {
     return lotes.map(l => {
       const opsData = data.filter(d => String(d.lote) === String(l.lote));
+      const bachesAcumulados = opsData.reduce((sum, current) => sum + (current.baches || 0), 0);
       const bultosAcumulados = opsData.reduce((sum, current) => sum + (current.bultos || 0), 0);
-      const programado = l.bultos_programados || 0;
-      const pendiente = programado - bultosAcumulados;
-      let porcentaje = 0;
-      if (programado > 0) {
-        porcentaje = (bultosAcumulados / programado) * 100;
-      } else if (bultosAcumulados > 0) {
-        porcentaje = 100;
+      const programadoBaches = l.num_baches || 0;
+      const pendienteBaches = programadoBaches - bachesAcumulados;
+      let porcentajeBaches = 0;
+      if (programadoBaches > 0) {
+        porcentajeBaches = (bachesAcumulados / programadoBaches) * 100;
+      } else if (bachesAcumulados > 0) {
+        porcentajeBaches = 100;
       }
+
+      const programadoBultos = l.bultos_programados || 0;
+      const pendienteBultos = programadoBultos - bultosAcumulados;
 
       const rawAlimento = l.maestro_alimentos;
       const alimento = Array.isArray(rawAlimento) ? rawAlimento[0]?.descripcion : rawAlimento?.descripcion || '';
@@ -397,12 +422,15 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
         lote: l.lote,
         alimento,
         cliente,
-        programado,
+        programadoBaches,
+        acumuladoBaches: bachesAcumulados,
+        pendienteBaches,
+        porcentaje: porcentajeBaches,
+        programado: programadoBultos,
         acumulado: bultosAcumulados,
-        pendiente,
-        porcentaje
+        pendiente: pendienteBultos,
       };
-    }).filter(op => op.programado > 0 || op.acumulado > 0);
+    }).filter(op => op.programado > 0 || op.acumulado > 0 || op.programadoBaches > 0);
   }, [lotes, data]);
 
   const handleOpColFilter = useCallback((key: string, value: string) => {
@@ -447,7 +475,7 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
   const opsParaMostrar = useMemo(() => {
     let filteredOps = opsResumen;
     if (mostrarSoloPendientes) {
-      filteredOps = filteredOps.filter(op => op.acumulado < op.programado * 1.05);
+      filteredOps = filteredOps.filter(op => op.acumuladoBaches < op.programadoBaches);
     }
     if (opsSearchTerm) {
       const q = opsSearchTerm.toLowerCase();
@@ -541,6 +569,184 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
         await writable.close();
       } else { XLSX.writeFile(wb, 'Produccion.xlsx'); }
     } catch (_e) { /* user cancelled */ }
+  };
+
+  const generarReporteExplosion = async () => {
+    setExplosionLoading(true);
+    try {
+      const { data: prodData, error } = await supabase
+        .from('produccion')
+        .select(`
+          lote, baches_entregados, fecha_produccion, turno,
+          programacion:programacion!inner(formula_id, maestro_clientes(nombre), maestro_alimentos(descripcion))
+        `)
+        .gte('fecha_produccion', explosionDesde)
+        .lte('fecha_produccion', explosionHasta);
+      if (error) throw error;
+      
+      const agrupado: Record<number, { baches: number, cliente: string, formula_id: number, alimento: string }> = {};
+      const formulaIds = new Set<number>();
+      const detallesList: any[] = [];
+
+      for (const p of prodData || []) {
+        const prog = Array.isArray(p.programacion) ? p.programacion[0] : (p.programacion || {});
+        const fid = prog.formula_id;
+        const baches = Number((p as any).baches_entregados || 0);
+        if (!fid || baches === 0) continue;
+        
+        formulaIds.add(fid);
+        const cNombre = Array.isArray(prog.maestro_clientes) ? (prog.maestro_clientes as any)[0]?.nombre : (prog.maestro_clientes as any)?.nombre;
+        const aNombre = Array.isArray(prog.maestro_alimentos) ? (prog.maestro_alimentos as any)[0]?.descripcion : (prog.maestro_alimentos as any)?.descripcion;
+        
+        const loteKey = Number(p.lote);
+        if (!agrupado[loteKey]) agrupado[loteKey] = { baches: 0, formula_id: fid, cliente: cNombre || 'General', alimento: aNombre || '-' };
+        agrupado[loteKey].baches += baches;
+        
+        detallesList.push({
+          fecha: p.fecha_produccion,
+          turno: p.turno,
+          op: p.lote,
+          cliente: cNombre || '-',
+          formula: aNombre || '-',
+          baches: baches
+        });
+      }
+
+      setExplosionDetalle(detallesList.sort((a,b) => a.fecha.localeCompare(b.fecha)));
+
+      if (formulaIds.size === 0) {
+        setExplosionData([]);
+        setExplosionLoading(false);
+        return;
+      }
+
+      const { data: detalles, error: detErr } = await supabase
+        .from('formula_detalle')
+        .select(`
+          formula_id, cantidad_base, material_id, 
+          inventario_materiales!inner(codigo, nombre)
+        `)
+        .in('formula_id', Array.from(formulaIds));
+      if (detErr) throw detErr;
+
+      const consolidado: Record<number, { codigo: string, material: string, totalKg: number, porOP: Record<string, number> }> = {};
+      const opsWithFormula = Object.keys(agrupado);
+
+      for (const lote of opsWithFormula) {
+        const info = agrupado[Number(lote)];
+        const baches = info.baches;
+        if (baches <= 0) continue;
+        
+        const de_f = detalles.filter(d => d.formula_id === info.formula_id);
+        for (const d of de_f) {
+          const mId = d.material_id;
+          const invObj = Array.isArray(d.inventario_materiales) ? d.inventario_materiales[0] : d.inventario_materiales;
+          if (!consolidado[mId]) consolidado[mId] = { codigo: (invObj as any)?.codigo || '-', material: (invObj as any)?.nombre || 'Desconocido', totalKg: 0, porOP: {} };
+          
+          const kg = d.cantidad_base * baches;
+          consolidado[mId].totalKg += kg;
+          consolidado[mId].porOP[lote] = (consolidado[mId].porOP[lote] || 0) + kg;
+        }
+      }
+
+      setExplosionData(Object.values(consolidado).sort((a,b) => b.totalKg - a.totalKg));
+      setExplosionOps(Object.keys(agrupado).map(k => ({ lote: k, ...agrupado[Number(k)] })));
+    } catch(err: any) {
+      alert("Error generando explosión: " + err.message);
+    }
+    setExplosionLoading(false);
+  };
+
+  const exportExplosionToExcel = async () => {
+    if (!explosionData.length && !explosionDetalle.length) return;
+    const wb = XLSX.utils.book_new();
+
+    const flatList: any[] = [];
+    for (const op of explosionOps) {
+       for (const e of explosionData) {
+          const kg = e.porOP[op.lote];
+          if (kg > 0) {
+             flatList.push({
+               'DESCRIPCION ALIMENTO': op.alimento,
+               'BACHEZ': op.baches,
+               'Código': e.codigo,
+               'Materia Prima': e.material,
+               'TOTAL KG': kg,
+               'OP': Number(op.lote)
+             });
+          }
+       }
+    }
+
+    if (flatList.length > 0) {
+      const wsFlat = XLSX.utils.json_to_sheet(flatList);
+      XLSX.utils.book_append_sheet(wb, wsFlat, 'Explosión de Producción');
+    }
+
+    try {
+      if ('showSaveFilePicker' in window) {
+        const handle = await (window as any).showSaveFilePicker({ suggestedName: `Reporte_Explosion_${explosionDesde}_al_${explosionHasta}.xlsx`, types: [{ description: 'Excel', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }] });
+        const writable = await handle.createWritable();
+        await writable.write(XLSX.write(wb, { bookType: 'xlsx', type: 'array' }));
+        await writable.close();
+      } else { XLSX.writeFile(wb, `Reporte_Explosion_${explosionDesde}.xlsx`); }
+    } catch (_e) { }
+  };
+
+  const exportExplosionToPDF = async () => {
+    if (!explosionData.length && !explosionDetalle.length) return;
+    try {
+      const doc = new jsPDF('landscape');
+      doc.setFontSize(18);
+      doc.text('Explosión de Consumos y Producción', 14, 20);
+      doc.setFontSize(11);
+      doc.text(`Periodo evaluado: ${explosionDesde} a ${explosionHasta}`, 14, 28);
+      
+      let finalY = 35;
+      if (explosionDetalle.length > 0) {
+        doc.setFontSize(14);
+        doc.text('Detalle de Órdenes (Baches)', 14, 34);
+        autoTable(doc, {
+          startY: 38,
+          head: [['Fecha', 'Turno', 'Lote', 'Cliente', 'Baches']],
+          body: explosionDetalle.map(e => [e.fecha, e.turno, e.op, e.cliente, e.baches]),
+          theme: 'grid',
+          headStyles: { fillColor: [25, 118, 210] }
+        });
+        finalY = (doc as any).lastAutoTable.finalY + 15;
+      }
+
+      if (explosionData.length > 0) {
+         doc.setFontSize(14);
+         doc.text('Consolidado Materiales Estimados', 14, finalY - 4);
+         
+         const headers = ['Código', 'Materia Prima', ...explosionOps.map(o => `OP ${o.lote}`), 'TOTAL(Kg)'];
+         const bodyRows = explosionData.map(e => [
+           e.codigo, e.material, 
+           ...explosionOps.map(o => (e.porOP[o.lote] || 0).toLocaleString('es-CO', { maximumFractionDigits: 2 })),
+           e.totalKg.toLocaleString('es-CO', { maximumFractionDigits: 2 })
+         ]);
+
+         autoTable(doc, {
+           startY: finalY,
+           head: [headers],
+           body: bodyRows,
+           theme: 'grid',
+           headStyles: { fillColor: [46, 125, 50] }
+         });
+      }
+
+      if ('showSaveFilePicker' in window) {
+        const handle = await (window as any).showSaveFilePicker({ suggestedName: `Explosion_${explosionDesde}.pdf`, types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }] });
+        const writable = await handle.createWritable();
+        await writable.write(doc.output('blob'));
+        await writable.close();
+      } else {
+        doc.save(`Explosion_${explosionDesde}.pdf`);
+      }
+    } catch(err) {
+      alert("Error generating PDF");
+    }
   };
 
   const handleImportClick = () => fileInputRef.current?.click();
@@ -800,6 +1006,12 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
         >
           Reporte del Turno / Cumplimiento
         </button>
+        <button 
+          className={`btn ${activeTab === 'reporte_explosion' ? 'btn-primary' : 'btn-outline'}`} 
+          onClick={() => setActiveTab('reporte_explosion')}
+        >
+          Explosión de Entregas
+        </button>
       </div>
 
       {/* --- REGISTROS TAB --- */}
@@ -915,6 +1127,12 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
                     </datalist>
                   </div>
                   <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Baches Entregados <span style={{ color: 'red' }}>*</span></label>
+                    <input type="number" name="baches_entregados" className="form-input" required placeholder="0" value={formData.baches_entregados || ''} onChange={handleInputChange} 
+                      style={Number(formData.baches_entregados) > opInfo.bachesPendiente && opInfo.bachesPendiente > 0 ? { borderColor: 'orange', outlineColor: 'orange' } : {}}
+                    />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
                     <label className="form-label">Bultos Entregados <span style={{ color: 'red' }}>*</span></label>
                     <input type="number" name="bultos_entregados" className="form-input" required placeholder="0" value={formData.bultos_entregados || ''} onChange={handleInputChange} 
                       style={Number(formData.bultos_entregados) > opInfo.pendiente && opInfo.pendiente > 0 ? { borderColor: 'orange', outlineColor: 'orange' } : {}}
@@ -934,11 +1152,19 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
                       <input type="text" className="form-input" disabled value={opInfo.cliente} style={{ background: '#e9ecef' }} />
                     </div>
                     <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label" style={{ fontSize: '0.8rem' }}>Producido Acumulado</label>
-                      <input type="text" className="form-input" disabled value={opInfo.acumulado} style={{ background: '#e9ecef' }} />
+                      <label className="form-label" style={{ fontSize: '0.8rem' }}>Acumulado (Baches)</label>
+                      <input type="text" className="form-input" disabled value={`${opInfo.bachesAcumulados} / ${opInfo.bachesProgramados}`} style={{ background: '#e9ecef', fontWeight: 600 }} />
                     </div>
                     <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label" style={{ fontSize: '0.8rem' }}>Faltan por Producir</label>
+                      <label className="form-label" style={{ fontSize: '0.8rem' }}>Pendientes (Baches)</label>
+                      <input type="text" className="form-input" disabled value={opInfo.bachesPendiente} style={{ background: '#e9ecef', color: opInfo.bachesPendiente < 0 ? 'red' : 'var(--green-700)', fontWeight: 600 }} />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.8rem' }}>Acumulado (Bultos)</label>
+                      <input type="text" className="form-input" disabled value={`${opInfo.acumulado} / ${opInfo.programado}`} style={{ background: '#e9ecef' }} />
+                    </div>
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <label className="form-label" style={{ fontSize: '0.8rem' }}>Pendientes (Bultos)</label>
                       <input type="text" className="form-input" disabled value={opInfo.pendiente} style={{ background: '#e9ecef', color: opInfo.pendiente < 0 ? 'red' : 'inherit' }} />
                     </div>
                   </div>
@@ -982,7 +1208,8 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
                     <th style={{ verticalAlign: 'top' }}>Lote {renderFilterInput('lote')}</th>
                     <th style={{ verticalAlign: 'top' }}>Alimento {renderFilterInput('alimento')}</th>
                     <th style={{ verticalAlign: 'top' }}>Categoría {renderFilterInput('categoria')}</th>
-                    <th style={{ verticalAlign: 'top' }}>Bultos</th>
+                    <th style={{ verticalAlign: 'top', textAlign: 'center' }}>Baches</th>
+                    <th style={{ verticalAlign: 'top', textAlign: 'right' }}>Bultos</th>
                     <th style={{ verticalAlign: 'top' }}>Kg</th>
                     <th style={{ verticalAlign: 'top' }}>Obs {renderFilterInput('observaciones')}</th>
                     {canEdit && <th style={{ verticalAlign: 'top', width: 80 }}>Acciones</th>}
@@ -997,7 +1224,8 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
                         <td style={{ fontWeight: 700 }}>{item.lote}</td>
                         <td>{item.alimento}</td>
                         <td>{item.categoria}</td>
-                        <td style={{ fontWeight: 600 }}>{item.bultos}</td>
+                        <td style={{ fontWeight: 700, textAlign: 'center', color: '#1976D2' }}>{item.baches}</td>
+                        <td style={{ fontWeight: 600, textAlign: 'right' }}>{item.bultos}</td>
                         <td>{item.kg.toLocaleString()}</td>
                         <td style={{ color: 'var(--text-muted)' }}>{item.observaciones || '—'}</td>
                         {canEdit && (
@@ -1027,6 +1255,113 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
             </div>
           </div>
         </div>
+      </div>
+
+      {/* --- REPORTE EXPLOSIÓN EN REGISTROS TAB --- */}
+      <div style={{ display: activeTab === 'reporte_explosion' ? 'block' : 'none', animation: 'fadeIn 0.3s ease' }}>
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-header"><span className="card-title">Explosión de Consumos Reales por Entrega (Baches)</span></div>
+          <div className="card-body">
+             <div className="grid-3" style={{ alignItems: 'flex-end', gap: 16 }}>
+               <div className="form-group" style={{ marginBottom: 0 }}>
+                 <label className="form-label">Entregas Desde</label>
+                 <input type="date" className="form-input" value={explosionDesde} onChange={e => setExplosionDesde(e.target.value)} />
+               </div>
+               <div className="form-group" style={{ marginBottom: 0 }}>
+                 <label className="form-label">Entregas Hasta</label>
+                 <input type="date" className="form-input" value={explosionHasta} onChange={e => setExplosionHasta(e.target.value)} />
+               </div>
+               <div>
+                  <button className="btn btn-primary" onClick={generarReporteExplosion} disabled={explosionLoading}>{explosionLoading ? 'Generando...' : 'Calcular Explosión'}</button>
+                  <button className="btn btn-outline" onClick={exportExplosionToExcel} style={{ marginLeft: 8 }} disabled={!explosionData.length}>
+                    <Download size={14} style={{ marginRight: 4 }} /> Excel
+                  </button>
+                  <button className="btn btn-outline" onClick={exportExplosionToPDF} style={{ marginLeft: 8 }} disabled={!explosionData.length}>
+                    <Download size={14} style={{ marginRight: 4 }} /> PDF
+                  </button>
+               </div>
+             </div>
+          </div>
+        </div>
+        
+        {explosionDetalle.length > 0 && (
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card-header"><span className="card-title">Detalle de Entregas (OPs) Involucradas</span></div>
+            <div className="card-body p-0">
+               <div className="data-table-wrapper" style={{ maxHeight: 300, overflowY: 'auto' }}>
+                 <table className="data-table">
+                    <thead><tr><th>Fecha</th><th>Turno</th><th>Lote (OP)</th><th>Fórmula Solicitada</th><th>Cliente</th><th style={{ textAlign: 'center' }}>Baches Entregados</th></tr></thead>
+                    <tbody>
+                      {explosionDetalle.map((e, idx) => (
+                         <tr key={idx}>
+                            <td>{e.fecha}</td>
+                            <td>{e.turno}</td>
+                            <td style={{ fontWeight: 600 }}>{e.op}</td>
+                            <td><span className="badge badge-info">{e.formula}</span></td>
+                            <td>{e.cliente}</td>
+                            <td style={{ textAlign: 'center', fontWeight: 'bold', color: '#1976D2' }}>{e.baches}</td>
+                         </tr>
+                      ))}
+                    </tbody>
+                 </table>
+               </div>
+            </div>
+          </div>
+        )}
+        
+        {explosionData.length > 0 && (
+          <div className="card">
+            <div className="card-header" style={{ background: 'var(--green-50)', borderBottom: '1px solid #C8E6C9' }}>
+               <span className="card-title" style={{ color: 'var(--green-800)' }}>Consolidado Total y Cruce por OP</span>
+            </div>
+            <div className="card-body p-0">
+               <div className="data-table-wrapper overflow-x-auto">
+                 <table className="data-table w-full">
+                    <thead>
+                      <tr>
+                        <th style={{ minWidth: 80 }}>Código</th>
+                        <th style={{ minWidth: 200 }}>Materia Prima</th>
+                        {explosionOps.map(op => (
+                          <th key={op.lote} style={{ textAlign: 'right', fontSize: '0.8rem', minWidth: 100 }}>
+                            <div style={{ fontSize: '0.7rem', color: '#2E7D32', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 120 }} title={op.alimento}>{op.alimento}</div>
+                            <div title={op.cliente} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 120 }}>{op.cliente}</div>
+                            <div>OP {op.lote}</div>
+                            <div style={{ fontWeight: 'normal', color: '#1565C0' }}>({op.baches} baches)</div>
+                          </th>
+                        ))}
+                        <th style={{ textAlign: 'right', fontWeight: 800, minWidth: 100 }}>TOTAL KG</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {explosionData.map(e => (
+                         <tr key={e.codigo}>
+                            <td style={{ fontWeight: 600, color: 'var(--text-muted)' }}>{e.codigo}</td>
+                            <td style={{ fontWeight: 600 }}>{e.material}</td>
+                            {explosionOps.map(op => {
+                              const v = e.porOP[op.lote] || 0;
+                              return <td key={op.lote} style={{ textAlign: 'right', fontSize: '0.85rem' }}>{v > 0 ? v.toLocaleString('es-CO', { maximumFractionDigits: 2 }) : '—'}</td>
+                            })}
+                            <td style={{ textAlign: 'right', fontWeight: 700, color: '#2E7D32' }}>{e.totalKg.toLocaleString('es-CO', { maximumFractionDigits: 2 })}</td>
+                         </tr>
+                      ))}
+                      {explosionData.length > 0 && (
+                        <tr style={{ fontWeight: 800, borderTop: '2px solid var(--border-color)', background: 'rgba(46,125,50,0.04)' }}>
+                          <td colSpan={2} style={{ textAlign: 'right' }}>TOTALES KG:</td>
+                          {explosionOps.map(op => {
+                            const opT = explosionData.reduce((s, e) => s + (e.porOP[op.lote] || 0), 0);
+                            return <td key={op.lote} style={{ textAlign: 'right', color: '#1565C0' }}>{opT.toLocaleString('es-CO', { maximumFractionDigits: 0 })}</td>;
+                          })}
+                          <td style={{ textAlign: 'right', fontSize: '1.1rem', color: '#2E7D32' }}>
+                            {explosionData.reduce((s,e)=>s+e.totalKg, 0).toLocaleString('es-CO', { maximumFractionDigits: 0 })}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                 </table>
+               </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* --- ESTADO OPs TAB --- */}
@@ -1083,11 +1418,10 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
                     <th style={{ verticalAlign: 'top' }}>Lote (OP) {renderOpFilterInput('lote')}</th>
                     <th style={{ verticalAlign: 'top' }}>Alimento {renderOpFilterInput('alimento')}</th>
                     <th style={{ verticalAlign: 'top' }}>Cliente {renderOpFilterInput('cliente')}</th>
-                    <th style={{ textAlign: 'right', verticalAlign: 'top' }}>Programado</th>
-                    <th style={{ textAlign: 'right', verticalAlign: 'top' }}>Producido</th>
-                    <th style={{ textAlign: 'right', verticalAlign: 'top' }}>Pendiente</th>
-                    <th style={{ textAlign: 'center', verticalAlign: 'top' }}>% Cumplimiento</th>
-                    <th style={{ textAlign: 'center', verticalAlign: 'top' }}>Adicional/Faltante</th>
+                    <th style={{ textAlign: 'center', verticalAlign: 'top' }}>Baches<br/><span style={{fontSize:'0.75rem', fontWeight:'normal'}}>Prog / Acum / Pend</span></th>
+                    <th style={{ textAlign: 'right', verticalAlign: 'top' }}>Bultos<br/><span style={{fontSize:'0.75rem', fontWeight:'normal'}}>Prog / Acum / Pend</span></th>
+                    <th style={{ textAlign: 'center', verticalAlign: 'top' }}>% Cumplimiento<br/>(Baches)</th>
+                    <th style={{ textAlign: 'center', verticalAlign: 'top' }}>Adicional/Faltante<br/>(Bultos)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1103,10 +1437,11 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
                         <td style={{ fontWeight: 700 }}>{op.lote}</td>
                         <td>{op.alimento}</td>
                         <td>{op.cliente || '—'}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{op.programado.toLocaleString()}</td>
-                        <td style={{ textAlign: 'right' }}>{op.acumulado.toLocaleString()}</td>
-                        <td style={{ textAlign: 'right', color: op.pendiente > 0 ? 'inherit' : (op.pendiente === 0 ? 'var(--green-700)' : 'red') }}>
-                          {op.pendiente > 0 ? op.pendiente.toLocaleString() : 0}
+                        <td style={{ textAlign: 'center' }}>
+                          <span style={{ fontWeight: 600 }}>{op.programadoBaches}</span> / <span style={{ color: '#1976D2', fontWeight: 600 }}>{op.acumuladoBaches}</span> / <span style={{ color: op.pendienteBaches > 0 ? 'inherit' : (op.pendienteBaches === 0 ? 'var(--green-700)' : 'red') }}>{op.pendienteBaches}</span>
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <span style={{ fontWeight: 600 }}>{op.programado.toLocaleString()}</span> / <span style={{ color: '#388E3C', fontWeight: 600 }}>{op.acumulado.toLocaleString()}</span> / <span style={{ color: op.pendiente > 0 ? 'inherit' : (op.pendiente === 0 ? 'var(--green-700)' : 'red') }}>{op.pendiente.toLocaleString()}</span>
                         </td>
                         <td style={{ textAlign: 'center', fontWeight: 'bold', color: pctColor(op.porcentaje) }}>
                           {op.porcentaje.toFixed(1)}%

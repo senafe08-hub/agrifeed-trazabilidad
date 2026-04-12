@@ -1,14 +1,17 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Plus, Search, Edit2, Trash2, Download, Upload, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Download, Upload, ChevronLeft, ChevronRight, Calendar, FlaskConical, Link2, Zap } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { usePermissions } from '../lib/permissions';
 import supabase from '../lib/supabase';
 import * as XLSX from 'xlsx';
+import FormulacionPanel from './FormulacionPage';
 
 const PAGE_SIZE = 100;
 
 export default function ProgramacionPage() {
   const { canView, canEdit } = usePermissions('programacion');
+  const { canEdit: canEditFormulas } = usePermissions('formulacion');
+  const [mainTab, setMainTab] = useState<'programacion' | 'catalogo' | 'asociar' | 'explosion'>('programacion');
 
   const [searchTerm, setSearchTerm] = useState('');
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
@@ -337,6 +340,37 @@ export default function ProgramacionPage() {
 
   return (
     <div>
+      {/* ── Main Tabs ── */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid var(--border-color)' }}>
+        {[
+          { key: 'programacion', label: 'Programación', icon: Calendar },
+          { key: 'catalogo', label: 'Catálogo Fórmulas', icon: FlaskConical },
+          { key: 'asociar', label: 'Asociar OP ↔ Fórmula', icon: Link2 },
+          { key: 'explosion', label: 'Explosión Traslado', icon: Zap },
+        ].map(t => (
+          <button key={t.key} onClick={() => setMainTab(t.key as any)}
+            style={{
+              padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 8,
+              border: 'none', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 600,
+              borderBottom: mainTab === t.key ? '3px solid #2E7D32' : '3px solid transparent',
+              color: mainTab === t.key ? '#2E7D32' : 'var(--text-muted)',
+              background: mainTab === t.key ? 'rgba(46,125,50,0.06)' : 'transparent',
+              borderRadius: '8px 8px 0 0', transition: 'all 0.2s',
+            }}
+          >
+            <t.icon size={18} /> {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Formulación tabs ── */}
+      {mainTab !== 'programacion' && (
+        <FormulacionPanel canEdit={canEditFormulas} tab={mainTab as 'catalogo' | 'asociar' | 'explosion'} />
+      )}
+
+      {/* ── Programación tab ── */}
+      {mainTab === 'programacion' && (
+      <>
       {/* Toolbar */}
       <div className="toolbar">
         <div className="toolbar-left">
@@ -551,6 +585,8 @@ export default function ProgramacionPage() {
           </div>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

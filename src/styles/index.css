@@ -147,16 +147,56 @@ h4 { font-size: 1.125rem; }
   display: flex;
   flex-direction: column;
   transition: width var(--transition-base), min-width var(--transition-base);
-  overflow: hidden;
+  /* removed overflow: hidden so toggle button can break out if needed, but inner content handles it */
   z-index: 100;
+  position: relative;
+}
+
+.sidebar.collapsed {
+  width: var(--sidebar-collapsed-width);
+  min-width: var(--sidebar-collapsed-width);
+}
+
+.sidebar-toggle {
+  position: absolute;
+  top: 50%;
+  right: -14px;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-secondary);
+  box-shadow: var(--shadow-sm);
+  z-index: 10;
+  transition: all var(--transition-fast);
+}
+
+.sidebar-toggle:hover {
+  background: var(--green-50);
+  color: var(--color-primary);
 }
 
 .sidebar-brand {
-  padding: 20px 20px 16px;
+  padding: 20px;
   display: flex;
   align-items: center;
   gap: 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  min-height: 80px;
+}
+.sidebar.collapsed .sidebar-brand {
+  padding: 20px 0;
+  justify-content: center;
+}
+.sidebar.collapsed .sidebar-brand-text {
+  display: none;
 }
 
 .sidebar-brand img {
@@ -175,6 +215,7 @@ h4 { font-size: 1.125rem; }
   font-weight: 800;
   color: #FFFFFF;
   letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 
 .sidebar-brand-subtitle {
@@ -201,6 +242,10 @@ h4 { font-size: 1.125rem; }
   color: var(--text-on-sidebar-muted);
   padding: 16px 12px 6px;
   font-weight: 600;
+  white-space: nowrap;
+}
+.sidebar.collapsed .sidebar-section-label {
+  display: none;
 }
 
 .sidebar-link {
@@ -218,6 +263,16 @@ h4 { font-size: 1.125rem; }
   background: none;
   width: 100%;
   text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.sidebar.collapsed .sidebar-link {
+  padding: 10px;
+  justify-content: center;
+}
+.sidebar.collapsed .sidebar-link > span,
+.sidebar.collapsed .sidebar-link > svg:last-child {
+  display: none;
 }
 
 .sidebar-link:hover {
@@ -259,6 +314,16 @@ h4 { font-size: 1.125rem; }
   display: flex;
   align-items: center;
   gap: 12px;
+  white-space: nowrap;
+}
+.sidebar.collapsed .sidebar-user {
+  padding: 16px 0;
+  justify-content: center;
+}
+.sidebar.collapsed .sidebar-user-info,
+.sidebar.collapsed .btn-icon-logout,
+.sidebar.collapsed .version-text {
+  display: none;
 }
 
 .sidebar-user-avatar {
@@ -283,6 +348,10 @@ h4 { font-size: 1.125rem; }
   font-size: 0.85rem;
   font-weight: 600;
   color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
 }
 
 .sidebar-user-role {

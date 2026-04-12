@@ -14,6 +14,7 @@ const demoUsers = [
   { id: 7, email: 'coordinador@agrifeed.com', nombre: 'Coordinador Administrativo', rol: 'Coordinador Administrativo', activo: true, ultimo_acceso: 'Sesión Local', password: 'agrifeed_coord' },
   { id: 8, email: 'gerencia@agrifeed.com', nombre: 'Director General (Gerencia)', rol: 'Gerencia', activo: true, ultimo_acceso: 'Sesión Local', password: 'agrifeed_gerencia' },
   { id: 9, email: 'cartera@agrifeed.com', nombre: 'Analista de Cartera', rol: 'Analista de Cartera', activo: true, ultimo_acceso: 'Sesión Local', password: 'agrifeed_cartera' },
+  { id: 10, email: 'piciz@agrifeed.com', nombre: 'Coordinador PICIZ', rol: 'Coordinador PICIZ', activo: true, ultimo_acceso: 'Sesión Local', password: 'agrifeed_piciz' },
 ];
 
 const PasswordDisplay = ({ pwd }: { pwd?: string }) => {
@@ -47,6 +48,7 @@ const roles = [
   { nombre: 'Auxiliar Logística', permisos: 'Edita Despachos (Logística) y Maestro. Visibilidad sobre Trazabilidad, Producción y Programación.' },
   { nombre: 'Auxiliar Administrativa', permisos: 'Edita Asignación de Facturas. Visibilidad en Prog., Trazabilidad, Despachos, y resto de facturación.' },
   { nombre: 'Coordinador Administrativo', permisos: 'Edita Creación de Pedidos y Anula en Histórico. Visibilidad general en módulos administrativos.' },
+  { nombre: 'Coordinador PICIZ', permisos: 'Visibilidad completa en todo el sistema y acceso a reportes. Único privilegio de edición: Marcar facturas como Matrizadas en Histórico.' },
   { nombre: 'Analista de Cartera', permisos: 'Acceso exclusivo y edición a la pestaña de Cartera (Liberación de pedidos) dentro de Facturación.' }
 ];
 

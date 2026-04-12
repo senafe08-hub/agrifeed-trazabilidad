@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Search, Download, Upload, XCircle, ChevronLeft, ChevronRight, History, Trash2, Calendar } from 'lucide-react';
-import { fetchHistoricoFacturacion, anularFactura, eliminarFactura, importarHistoricoFacturasExcel } from '../../lib/supabase';
+import { fetchHistoricoFacturacion, anularFactura, eliminarFactura, importarHistoricoFacturasExcel, toggleMatrizadaFactura, fetchOPsConFormula, fetchFormulaConDetalle } from '../../lib/supabase';
 import { toast } from '../../components/Toast';
 import * as XLSX from 'xlsx';
 
 const PAGE_SIZE = 100;
 
-export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit = true }: { onRefreshKpis?: () => void; isAdmin?: boolean; canEdit?: boolean }) {
+export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit = true, userRole }: { onRefreshKpis?: () => void; isAdmin?: boolean; canEdit?: boolean; userRole?: string }) {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -67,6 +67,11 @@ export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit =
         if (!val.includes(fv.toLowerCase())) return false;
       }
       return true;
+    }).sort((a, b) => {
+      const numA = parseInt(String(a.num_factura).replace(/\D/g, '')) || 0;
+      const numB = parseInt(String(b.num_factura).replace(/\D/g, '')) || 0;
+      if (numA !== numB) return numB - numA;
+      return String(b.num_factura).localeCompare(String(a.num_factura));
     });
   }, [data, searchTerm, columnFilters, fechaFiltroDesde, fechaFiltroHasta]);
 
@@ -156,6 +161,93 @@ export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit =
       e.target.value = ''; // Reset
     };
     reader.readAsBinaryString(file);
+  };
+
+  const handleToggleMatrizada = async (facturaId: number, currentStat: boolean) => {
+    const isPiciz = userRole === 'Coordinador PICIZ' || userRole?.toLowerCase().includes('piciz');
+    if (!canEdit && !isPiciz) return;
+    try {
+      // Find the num_factura to update duplicates as well
+      const targetNumFactura = data.find(r => r.factura_id == facturaId)?.num_factura;
+      
+      // Optimistic update for ALL rows with this num_factura (handles imported duplicates)
+      setData(prev => prev.map(r => r.num_factura === targetNumFactura ? { ...r, matrizada: !currentStat } : r));
+      
+      // Update ALL facturas in DB that share this num_factura
+      const facturasToUpdate = Array.from(new Set(data.filter(r => r.num_factura === targetNumFactura).map(r => r.factura_id)));
+      for (const fId of facturasToUpdate) {
+         await toggleMatrizadaFactura(fId, !currentStat);
+      }
+
+      await loadData();
+    } catch(e) {
+      toast.error('Error al actualizar matrizado en Base de Datos');
+      loadData();
+    }
+  };
+
+  const generarReportePiciz = async () => {
+    const pendientes = filtered.filter(f => !f.matrizada && f.estado_factura !== 'ANULADA');
+    if (pendientes.length === 0) {
+       toast.error("No hay facturas filtradas en pantalla que estén vigentes y Pendientes por Matrizar.");
+       return;
+    }
+    setLoading(true);
+    try {
+        const opsProg = await fetchOPsConFormula();
+        const formulaIds = Array.from(new Set(opsProg.map(o => o.formula_id).filter(Boolean)));
+        const formulasMap = new Map();
+        for (const id of formulaIds) {
+           const { detalle } = await fetchFormulaConDetalle(id!);
+           formulasMap.set(id, detalle);
+        }
+
+        const reportData: any[] = [];
+        for (const p of pendientes) {
+           const opData = opsProg.find((o: any) => o.lote === p.op);
+           if (!opData || !opData.formula_id) continue;
+           const sacosPorBache = (opData as any).formulas?.sacos_por_bache || 25;
+           const bachesEq = (p.bultos_despachados || p.bultos || 0) / sacosPorBache;
+           
+           const formulaDet = formulasMap.get(opData.formula_id) || [];
+           for (const mat of formulaDet) {
+              const kgCon = mat.cantidad_base * bachesEq;
+              if (kgCon > 0) {
+                 reportData.push({
+                    'N° Factura': p.num_factura,
+                    'Cliente': p.nombre_cliente,
+                    'Descripción Alimento': p.referencia,
+                    'Código Materia Prima': mat.inventario_materiales?.codigo || '',
+                    'Materia Prima': mat.inventario_materiales?.nombre || '',
+                    'Total KG': Number(kgCon.toFixed(2)),
+                    'OP': p.op
+                 });
+              }
+           }
+        }
+
+        if (reportData.length === 0) {
+           toast.error("No hay consumos calculables (verifique que las OPs ligadas tengan fórmulas asignadas).");
+           setLoading(false);
+           return;
+        }
+
+        const ws = XLSX.utils.json_to_sheet(reportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Pendientes_Piciz');
+        if ('showSaveFilePicker' in window) {
+          const handle = await (window as any).showSaveFilePicker({ suggestedName: `Matrizado_Requerido_${new Date().toISOString().split('T')[0]}.xlsx`, types: [{ description: 'Excel', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }] });
+          const writable = await handle.createWritable();
+          await writable.write(XLSX.write(wb, { bookType: 'xlsx', type: 'array' }));
+          await writable.close();
+        } else {
+          XLSX.writeFile(wb, `Matrizado_Requerido.xlsx`);
+        }
+        toast.success("Reporte generado con éxito.");
+    } catch(e: any) {
+        toast.error("Error al generar: " + e.message);
+    }
+    setLoading(false);
   };
 
   // Export to Excel
@@ -269,6 +361,9 @@ export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit =
                 <Upload size={14} /> {importing ? '...' : 'Import Excel'}
               </label>
             )}
+            <button className="btn btn-primary btn-sm" onClick={generarReportePiciz} disabled={loading} style={{ background: 'var(--color-warning)', color: '#000', borderColor: 'var(--color-warning)' }}>
+              Explosión PICIZ (Pendientes)
+            </button>
             <button className="btn btn-outline btn-sm" onClick={exportToExcel}>
               <Download size={14} /> Export Excel
             </button>
@@ -279,6 +374,7 @@ export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit =
             <table className="data-table">
               <thead>
                 <tr>
+                  <th style={{ verticalAlign: 'top', width: 60, textAlign: 'center' }}>Matrizada</th>
                   <th style={{ verticalAlign: 'top' }}>Remisión {renderFilterInput('num_remision')}</th>
                   <th style={{ verticalAlign: 'top' }}>F. Despacho</th>
                   <th style={{ verticalAlign: 'top' }}>Cliente {renderFilterInput('nombre_cliente')}</th>
@@ -313,8 +409,25 @@ export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit =
                 ) : paginatedData.map((row, idx) => {
                   const showAnular = row.estado_factura !== 'ANULADA' && !facturaIdsShown.has(row.factura_id);
                   if (row.estado_factura !== 'ANULADA') facturaIdsShown.add(row.factura_id);
+                  const showRowMatrizadaCheckbox = !facturaIdsShown.has('mat_' + row.factura_id);
+                  facturaIdsShown.add('mat_' + row.factura_id);
+
+                  const isPiciz = userRole === 'Coordinador PICIZ' || userRole?.toLowerCase().includes('piciz');
+                  const canToggleMatrizado = canEdit || isPiciz;
+                  const disableToggle = !!row.matrizada && !isAdmin; // Only Admin can uncheck it
+
                   return (
                     <tr key={idx} style={row.estado_factura === 'ANULADA' ? { opacity: 0.5, textDecoration: 'line-through' } : {}}>
+                      <td style={{ textAlign: 'center' }}>
+                        {showRowMatrizadaCheckbox && row.estado_factura !== 'ANULADA' && canToggleMatrizado ? (
+                           <label className="switch-sm" title={disableToggle ? "Solo el Administrador puede desmarcar" : "Marcar como procesado por PICIZ"} style={{ opacity: disableToggle ? 0.6 : 1 }}>
+                             <input type="checkbox" checked={!!row.matrizada} disabled={disableToggle} onChange={() => handleToggleMatrizada(row.factura_id, !!row.matrizada)} />
+                             <span className="slider round"></span>
+                           </label>
+                        ) : row.matrizada ? (
+                          <span style={{ fontSize: '0.8rem', color: 'var(--color-success)', fontWeight: 600 }}>Sí</span>
+                        ) : null}
+                      </td>
                       <td>
                         {row.num_remision || (row.es_anticipado
                           ? <span className="estado-tag anticipado" style={{ fontSize: '0.65rem' }}>ANT</span>
