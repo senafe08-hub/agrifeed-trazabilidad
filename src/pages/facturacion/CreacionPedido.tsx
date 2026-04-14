@@ -170,15 +170,26 @@ export default function CreacionPedido({ onRefreshKpis, isAdmin, canEdit = true 
     handleSelectRemision(num);
   };
 
+  const remisionesEnRango = useMemo(() => {
+    return remisiones.filter(r => {
+      if (fechaRemDesde && r.fecha_despacho < fechaRemDesde) return false;
+      if (fechaRemHasta && r.fecha_despacho > fechaRemHasta) return false;
+      return true;
+    });
+  }, [remisiones, fechaRemDesde, fechaRemHasta]);
+
   // Filtered remisiones for dropdown
   const filteredRemisiones = useMemo(() => {
     const term = remisionSearch.toLowerCase();
-    if (!term) return remisiones.slice(0, 50);
-    return remisiones.filter(r =>
-      String(r.num_remision).includes(term) ||
-      (r.cliente_nombre || '').toLowerCase().includes(term)
-    ).slice(0, 50);
-  }, [remisiones, remisionSearch]);
+    return remisionesEnRango.filter(r => {
+      if (term) {
+        if (!String(r.num_remision).includes(term) && !(r.cliente_nombre || '').toLowerCase().includes(term)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [remisionesEnRango, remisionSearch]);
 
   // Toggle OP selection
   const toggleOP = (idx: number) => {
@@ -449,11 +460,7 @@ export default function CreacionPedido({ onRefreshKpis, isAdmin, canEdit = true 
                 <input type="date" className="form-input" value={fechaRemHasta} onChange={e => setFechaRemHasta(e.target.value)}
                   style={{ width: 145, padding: '4px 8px', fontSize: '0.85rem' }} title="Fecha Hasta" />
                 <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginLeft: 4 }}>
-                  ({remisiones.filter(r => {
-                    if (fechaRemDesde && r.fecha_despacho < fechaRemDesde) return false;
-                    if (fechaRemHasta && r.fecha_despacho > fechaRemHasta) return false;
-                    return true;
-                  }).length} remisiones en rango)
+                  ({remisionesEnRango.length} remisiones en rango)
                 </span>
               </div>
               <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'end' }}>
@@ -474,21 +481,13 @@ export default function CreacionPedido({ onRefreshKpis, isAdmin, canEdit = true 
                   </div>
                 </div>
                 <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                  <label className="form-label">Remisiones Pendientes ({remisiones.filter(r => {
-                    if (fechaRemDesde && r.fecha_despacho < fechaRemDesde) return false;
-                    if (fechaRemHasta && r.fecha_despacho > fechaRemHasta) return false;
-                    return true;
-                  }).length})</label>
+                  <label className="form-label">Remisiones Pendientes ({filteredRemisiones.length})</label>
                   <select className="form-select" value="" onChange={e => {
                     const num = parseInt(e.target.value);
                     if (!isNaN(num)) handleSelectRemision(num);
                   }}>
                     <option value="">Seleccionar remisión pendiente...</option>
-                    {filteredRemisiones.filter(r => {
-                      if (fechaRemDesde && r.fecha_despacho < fechaRemDesde) return false;
-                      if (fechaRemHasta && r.fecha_despacho > fechaRemHasta) return false;
-                      return true;
-                    }).map(r => (
+                    {filteredRemisiones.map(r => (
                       <option key={r.num_remision} value={r.num_remision}>
                         {r.num_remision} — {r.cliente_nombre} — {r.fecha_despacho} ({r.ops.filter((o: any) => o.saldo_pendiente > 0).length} OPs)
                       </option>

@@ -1,11 +1,11 @@
 {
     "platforms":  {
                       "windows-x86_64":  {
-                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTU2UwSmMvUDJ0djZJaEZHeVZmTXpYM1ZlTkZLQVhtWHpNaGpvMWx5dkhpcDVsNHFWZ0FyNU1FNjFHUk5CZU1wUDJoL0RsbW42VGVxZjFjdlJvT0FLbmlMekJramdZVEFZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc1OTY1NjUwCWZpbGU6QWdyaWZlZWQgVHJhemFiaWxpZGFkXzAuMi41X3g2NC1zZXR1cC5leGUKVVE3SGRXWWRvNTUzZ1pPbTVMbWdQYzB6OTdWTEZYMGEvU1o1RzBCdVhmT3pjNTZOK3VVenBGUnlBUFdhV2lFNTcvenhBOWJ5YUl5bWZRZmRhT2ZjQkE9PQo=",
-                                             "url":  "https://github.com/senafe08-hub/agrifeed-trazabilidad/releases/download/v0.2.5/Agrifeed_v0.2.5.exe"
+                                             "signature":  "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVTU2UwSmMvUDJ0djhTUUxzYjRJR1NvQTZUMHk2YVpNZmNvUldyQlJxQ1FkSVczNDdiM2NJTDVjb3UvODBLR0xGUVNoa2I4OHE5MmprNDUvbGRLVDRUYUcwR2wySGJIaUFrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzc2MTI4MTgzCWZpbGU6QWdyaWZlZWQgVHJhemFiaWxpZGFkXzAuMi42X3g2NC1zZXR1cC5leGUKRjN0QW9yNlN5SERKbXEwSGhFdC9aVjhkckw4eTR2YjBMWnk3RFdDNEh4ZERNbnlsV0hqdnNxNTQ4bndUWkxDWW9MYTdEWFNzYmNjdUIxTGdLOHZUQmc9PQo=",
+                                             "url":  "https://github.com/senafe08-hub/agrifeed-trazabilidad/releases/download/v0.2.6/Agrifeed_v0.2.6.exe"
                                          }
                   },
-    "pub_date":  "2026-04-11T22:47:30Z",
-    "version":  "0.2.5",
-    "notes":  "Actualizacion a la version 0.2.5 disparada por Script."
+    "pub_date":  "2026-04-13T19:56:23Z",
+    "version":  "0.2.6",
+    "notes":  "Actualizacion a la version 0.2.6 disparada por Script."
 }

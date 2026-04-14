@@ -391,7 +391,7 @@ function ExplosionTab({ clientes }: { clientes: any[] }) {
   };
 
   const toggleOp = (id: number) => setSelectedOps(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const selectAll = () => setSelectedOps(new Set(ops.filter(o => o.estado_formulacion !== 'LIQUIDADA').map(o => o.id)));
+  const selectAll = () => setSelectedOps(new Set(ops.map(o => o.id)));
   const selectNone = () => setSelectedOps(new Set());
 
   const handleChangeSacos = (opId: number, sacos: string, formula: any) => {
@@ -464,7 +464,7 @@ function ExplosionTab({ clientes }: { clientes: any[] }) {
     setLoading(false);
   };
 
-    // Excel export: DESCRIPCION ALIMENTO | BACHEZ | Código | Materia Prima | TOTAL KG | OP
+  // Excel export: DESCRIPCION ALIMENTO | BACHEZ | Código | Materia Prima | TOTAL KG | OP
   const exportExcel = () => {
     if (explosion.length === 0) return toast.error('No hay datos');
     const rows: any[] = [];
@@ -557,8 +557,13 @@ function ExplosionTab({ clientes }: { clientes: any[] }) {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Explosión');
     const clienteObj = clientes.find((c: any) => String(c.codigo_sap) === clienteSap);
-    XLSX.writeFile(wb, `Explosion_${clienteObj?.nombre || 'Todos'}_${fechaDesde}.xlsx`);
-    toast.success('Excel exportado');
+    
+    try {
+      XLSX.writeFile(wb, `Explosion_${clienteObj?.nombre || 'Todos'}_${fechaDesde}.xlsx`);
+      toast.success('Excel exportado');
+    } catch (e: any) {
+      toast.error('Error al exportar Excel: ' + e.message);
+    }
   };
 
   // ── PDF Export ──
@@ -577,70 +582,60 @@ function ExplosionTab({ clientes }: { clientes: any[] }) {
       logoImg = await new Promise<string>((res) => { const r = new FileReader(); r.onload = () => res(r.result as string); r.readAsDataURL(blob); });
     } catch { /* no logo */ }
 
-    // ── Green header band ──
-    doc.setFillColor(27, 94, 32);  // #1B5E20
-    doc.rect(0, 0, pageW, 28, 'F');
+    // Helper function to draw header on new pages
+    const drawHeader = (title: string, omitLogoSpace = false) => {
+      doc.setFillColor(27, 94, 32);  // #1B5E20
+      doc.rect(0, 0, pageW, 28, 'F');
+      
+      const infoBoxW = 42;
+      const infoX = pageW - margin - infoBoxW;
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(infoX, 4, infoBoxW, 20, 2, 2, 'F');
+      doc.setTextColor(27, 94, 32);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'bold');
+      const now = new Date();
+      doc.text('Fecha:', infoX + 3, 9);
+      doc.text('Hora:', infoX + 3, 14);
+      doc.text('Página:', infoX + 3, 19);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${now.toLocaleDateString('es-CO')}`, infoX + 16, 9);
+      doc.text(`${now.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}`, infoX + 16, 14);
+      doc.text(`${doc.getNumberOfPages()}`, infoX + 16, 19);
 
-    // Info box on right (draw first so title wraps around it)
-    const infoBoxW = 42;
-    const infoX = pageW - margin - infoBoxW;
-    doc.setFillColor(255, 255, 255);
-    doc.roundedRect(infoX, 4, infoBoxW, 20, 2, 2, 'F');
-    doc.setTextColor(27, 94, 32);
-    doc.setFontSize(7);
-    doc.setFont('helvetica', 'bold');
-    const now = new Date();
-    doc.text('Fecha:', infoX + 3, 9);
-    doc.text('Hora:', infoX + 3, 14);
-    doc.text('Página:', infoX + 3, 19);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`${now.toLocaleDateString('es-CO')}`, infoX + 16, 9);
-    doc.text(`${now.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}`, infoX + 16, 14);
-    doc.text('1', infoX + 16, 19);
+      if (logoImg && !omitLogoSpace) {
+        doc.addImage(logoImg, 'PNG', margin, 3, 48, 22);
+      }
 
-    if (logoImg) {
-      doc.addImage(logoImg, 'PNG', margin, 3, 48, 22);
-    }
+      const textStartX = (logoImg && !omitLogoSpace) ? margin + 52 : margin;
+      const maxTitleW = infoX - textStartX - 4;
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text(title, textStartX, 12, { maxWidth: maxTitleW });
+      
+      const clienteObj = clientes.find((c: any) => String(c.codigo_sap) === clienteSap);
+      const clienteLabel = clienteObj?.nombre || 'TODOS LOS CLIENTES';
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Cliente: ${clienteLabel}  |  Rango: ${fechaDesde} → ${fechaHasta}`, textStartX, 22);
+      doc.setTextColor(0, 0, 0);
+    };
 
-    // Header text (limit width so it doesn't overlap info box)
-    const textStartX = logoImg ? margin + 52 : margin;
-    const maxTitleW = infoX - textStartX - 4;
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text('TRASLADO DE MATERIA PRIMA DE ALMACÉN A PRODUCCIÓN', textStartX, 11, { maxWidth: maxTitleW });
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.text('PROCESO DE SOPORTE — SUBPROCESO DE LOGÍSTICA', textStartX, 17);
+    const drawFooter = () => {
+      const now = new Date();
+      doc.setFillColor(27, 94, 32);
+      doc.rect(0, pageH - 8, pageW, 8, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(6.5);
+      doc.text('AGRIFEED S.A.S  —  NIT 900.959.683-1  —  Zona Franca Palermo Km 1, Vía Barranquilla - Ciénaga', margin, pageH - 3);
+      doc.text(`Generado: ${now.toLocaleString('es-CO')}`, pageW - margin - 45, pageH - 3);
+    };
 
-    // Client name display
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(8);
-    const clienteObj = clientes.find((c: any) => String(c.codigo_sap) === clienteSap);
-    const clienteLabel = clienteObj?.nombre || 'TODOS LOS CLIENTES';
-    doc.text(`Cliente: ${clienteLabel}  |  Rango: ${fechaDesde} → ${fechaHasta}`, textStartX, 23);
+    // ── PAGE 1: CONSOLIDATED (TOTALES) ──
+    drawHeader('TRASLADO MPR - RESUMEN CONSOLIDADO GENERAL');
 
-    // Reset colors
-    doc.setTextColor(0, 0, 0);
-
-    // ── Sub-header: OP summary ──
-    const yOps = 32;
-    doc.setFillColor(232, 245, 233); // light green bg
-    doc.rect(margin, yOps, pageW - margin * 2, 10, 'F');
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(27, 94, 32);
-    doc.text('OPs INCLUIDAS:', margin + 3, yOps + 4);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(60, 60, 60);
-    const opsSummary = opsWithFormula.map(o => `${o.lote} (${o.maestro_alimentos?.descripcion || ''})`).join('  |  ');
-    doc.text(opsSummary.substring(0, 220), margin + 30, yOps + 4, { maxWidth: pageW - margin * 2 - 35 });
-    doc.setFontSize(7);
-    doc.text(`${opsWithFormula.length} OPs  •  Modo: ${mode === 'total' ? 'TOTAL' : 'PARCIAL'}`, margin + 3, yOps + 8);
-
-    // ── Main table ──
-    // Build rows for consolidated: header shows OP - ALIMENTO - BACHES
-    const opLotes = opsWithFormula.map(o => o.lote);
+    // Consolidated rows
     const headRow2 = ['Código', 'Materia Prima'];
     for (const o of opsWithFormula) {
       const ov = overrides[o.id];
@@ -650,39 +645,9 @@ function ExplosionTab({ clientes }: { clientes: any[] }) {
     }
     headRow2.push('Total KG');
 
-    const bodyRows: any[] = [];
-    // For each OP, list its materials with the OP-specific KGs 
-    for (const op of opsWithFormula) {
-      const detalle = detallesFormula[op.formula_id];
-      if (!detalle) continue;
-      const ov = overrides[op.id];
-      const baches = mode === 'parcial' && ov ? Number(ov.baches) : (op.num_baches || 0);
-      const alimentoDesc = op.maestro_alimentos?.descripcion || '';
-      for (const d of detalle) {
-        const kg = d.cantidad_base * baches;
-        const perOp: any[] = opLotes.map(lote => {
-          // Find kg for this material in this OP
-          const eItem = explosion.find(e => e.codigo === (d.inventario_materiales?.codigo || d.material_id));
-          return lote === op.lote ? Number(kg.toFixed(2)).toLocaleString('es-CO') : (eItem?.porOP[lote] ? '' : '');
-        });
-        bodyRows.push([
-          alimentoDesc,
-          baches,
-          d.inventario_materiales?.codigo || d.material_id,
-          d.inventario_materiales?.nombre || '',
-          ...perOp,
-          Number(kg.toFixed(2)).toLocaleString('es-CO'),
-        ]);
-      }
-    }
-
-    // Consolidated rows (like the on-screen table) — only Código, Materia Prima, per-OP, Total
     const consolidatedBody: any[][] = [];
     for (const e of explosion) {
-      const row: any[] = [
-        e.codigo,
-        e.nombre,
-      ];
+      const row: any[] = [e.codigo, e.nombre];
       for (const o of opsWithFormula) {
         row.push((e.porOP[o.lote] || 0) > 0 ? Number((e.porOP[o.lote]).toFixed(2)).toLocaleString('es-CO') : '');
       }
@@ -690,7 +655,6 @@ function ExplosionTab({ clientes }: { clientes: any[] }) {
       consolidatedBody.push(row);
     }
 
-    // Totals row
     const totalsRow: any[] = ['', 'TOTAL GENERAL'];
     for (const o of opsWithFormula) {
       const opT = explosion.reduce((s, e) => s + (e.porOP[o.lote] || 0), 0);
@@ -698,104 +662,105 @@ function ExplosionTab({ clientes }: { clientes: any[] }) {
     }
     totalsRow.push(Number(totalKg.toFixed(0)).toLocaleString('es-CO'));
 
-    // ── Table 1: Detailed by OP (like user's image) ──
-    const detailedBody: any[][] = [];
+    autoTable(doc, {
+      startY: 32,
+      head: [headRow2],
+      body: consolidatedBody,
+      foot: [totalsRow],
+      theme: 'grid',
+      styles: { fontSize: 6.5, cellPadding: 1.8, lineColor: [200, 200, 200], lineWidth: 0.2 },
+      headStyles: { fillColor: [27, 94, 32], textColor: 255, fontStyle: 'bold', fontSize: 6.5, halign: 'center' },
+      footStyles: { fillColor: [232, 245, 233], textColor: [27, 94, 32], fontStyle: 'bold', fontSize: 7 },
+      columnStyles: { 0: { cellWidth: 16, halign: 'center' }, 1: { cellWidth: 55 } },
+      alternateRowStyles: { fillColor: [250, 253, 250] },
+      margin: { left: margin, right: margin },
+      didDrawPage: drawFooter,
+    });
+
+    // ── SUBSEQUENT PAGES: OP by OP, GROUPED BY CLASSIFICATION ──
     for (const op of opsWithFormula) {
       const detalle = detallesFormula[op.formula_id];
       if (!detalle) continue;
+      
       const ov = overrides[op.id];
       const baches = mode === 'parcial' && ov ? Number(ov.baches) : (op.num_baches || 0);
       const alimentoDesc = op.maestro_alimentos?.descripcion || '';
+      const bultos = op.bultos_programados || 0;
+
+      // Group materials by 'referencia' (MACRO, MICRO, etc.)
+      const groupedData: Record<string, any[][]> = {};
+      let hasValidItems = false;
+      
       for (const d of detalle) {
         const kg = d.cantidad_base * baches;
-        detailedBody.push([
-          alimentoDesc,
-          baches,
+        if (kg <= 0) continue;
+        
+        let rawRef = (d.referencia || '').trim().toUpperCase();
+        if (!rawRef) rawRef = 'SIN CLASIFICAR';
+        
+        if (!groupedData[rawRef]) groupedData[rawRef] = [];
+        groupedData[rawRef].push([
           d.inventario_materiales?.codigo || d.material_id,
           d.inventario_materiales?.nombre || '',
+          Number(d.cantidad_base.toFixed(3)).toLocaleString('es-CO'),
           Number(kg.toFixed(2)).toLocaleString('es-CO'),
-          op.lote,
         ]);
+        hasValidItems = true;
+      }
+
+      if (!hasValidItems) continue;
+
+      const groups = Object.keys(groupedData).sort();
+      for (const gName of groups) {
+        const groupRows = groupedData[gName];
+        if (groupRows.length === 0) continue;
+
+        doc.addPage();
+        drawHeader(`HOJA DE EXPLOSIÓN: ${gName}`);
+
+        // OP Details Banner
+        const yOps = 32;
+        doc.setFillColor(232, 245, 233);
+        doc.rect(margin, yOps, pageW - margin * 2, 12, 'F');
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(27, 94, 32);
+        doc.text(`ORDEN DE PRODUCCIÓN (OP): ${op.lote}`, margin + 3, yOps + 5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(60, 60, 60);
+        doc.setFontSize(8);
+        doc.text(`Alimento: ${alimentoDesc}`, margin + 3, yOps + 10);
+        doc.text(`Programación: ${baches} BACHES  |  Equivalente: ${bultos} BULTOS`, margin + 140, yOps + 10);
+
+        autoTable(doc, {
+          startY: yOps + 15,
+          head: [['Código', 'Materia Prima / Ingrediente', 'FÓRMULA (KG X BACHE)', `REQUERIMIENTO TOTAL (X ${baches} BACHES)`]],
+          body: groupRows,
+          theme: 'grid',
+          styles: { fontSize: 8, cellPadding: 2.5, lineColor: [200, 200, 200], lineWidth: 0.2 },
+          headStyles: { fillColor: [27, 94, 32], textColor: 255, fontStyle: 'bold', fontSize: 8, halign: 'center' },
+          columnStyles: {
+            0: { cellWidth: 25, halign: 'center', fontStyle: 'bold' },
+            1: { cellWidth: 100 },
+            2: { cellWidth: 40, halign: 'right', textColor: [100, 100, 100] },
+            3: { cellWidth: 40, halign: 'right', fontStyle: 'bold', textColor: [27, 94, 32] },
+          },
+          alternateRowStyles: { fillColor: [245, 250, 245] },
+          margin: { left: margin, right: margin },
+          didDrawPage: drawFooter,
+        });
       }
     }
 
-    autoTable(doc, {
-      startY: yOps + 14,
-      head: [['DESCRIPCION ALIMENTO', 'BACHEZ', 'Código', 'Materia Prima', 'TOTAL KG', 'OP']],
-      body: detailedBody,
-      theme: 'grid',
-      styles: { fontSize: 7, cellPadding: 2, lineColor: [200, 200, 200], lineWidth: 0.2 },
-      headStyles: { fillColor: [27, 94, 32], textColor: 255, fontStyle: 'bold', fontSize: 7.5, halign: 'center' },
-      columnStyles: {
-        0: { cellWidth: 55, fontStyle: 'bold', textColor: [27, 94, 32] },
-        1: { cellWidth: 15, halign: 'center', fontStyle: 'bold' },
-        2: { cellWidth: 18, halign: 'center' },
-        3: { cellWidth: 80 },
-        4: { cellWidth: 25, halign: 'right', fontStyle: 'bold', textColor: [27, 94, 32] },
-        5: { cellWidth: 18, halign: 'center', fontStyle: 'bold', textColor: [21, 101, 192] },
-      },
-      alternateRowStyles: { fillColor: [245, 250, 245] },
-      margin: { left: margin, right: margin },
-      tableWidth: 'auto',
-      didDrawPage: () => {
-        // Footer on every page
-        doc.setFillColor(27, 94, 32);
-        doc.rect(0, pageH - 8, pageW, 8, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(6.5);
-        doc.text('AGRIFEED S.A.S  —  NIT 900.959.683-1  —  Zona Franca Palermo Km 1, Vía Barranquilla - Ciénaga', margin, pageH - 3);
-        doc.text(`Generado: ${now.toLocaleString('es-CO')}`, pageW - margin - 45, pageH - 3);
-      },
-    });
-
-    // ── Consolidated summary table on next page ──
-    if (consolidatedBody.length > 0 && opsWithFormula.length > 1) {
-      doc.addPage();
-      // Green header band for page 2
-      doc.setFillColor(27, 94, 32);
-      doc.rect(0, 0, pageW, 18, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text('RESUMEN CONSOLIDADO DE MATERIAS PRIMAS', margin, 12);
-      if (logoImg) doc.addImage(logoImg, 'PNG', pageW - margin - 48, 1, 46, 16);
-
-      autoTable(doc, {
-        startY: 22,
-        head: [headRow2],
-        body: consolidatedBody,
-        foot: [totalsRow],
-        theme: 'grid',
-        styles: { fontSize: 6.5, cellPadding: 1.8, lineColor: [200, 200, 200], lineWidth: 0.2 },
-        headStyles: { fillColor: [27, 94, 32], textColor: 255, fontStyle: 'bold', fontSize: 6.5, halign: 'center' },
-        footStyles: { fillColor: [232, 245, 233], textColor: [27, 94, 32], fontStyle: 'bold', fontSize: 7 },
-        columnStyles: {
-          0: { cellWidth: 16, halign: 'center' }, 1: { cellWidth: 55 },
-        },
-        alternateRowStyles: { fillColor: [250, 253, 250] },
-        margin: { left: margin, right: margin },
-        didDrawPage: () => {
-          doc.setFillColor(27, 94, 32);
-          doc.rect(0, pageH - 8, pageW, 8, 'F');
-          doc.setTextColor(255, 255, 255);
-          doc.setFontSize(6.5);
-          doc.text('AGRIFEED S.A.S  —  NIT 900.959.683-1  —  Zona Franca Palermo Km 1, Vía Barranquilla - Ciénaga', margin, pageH - 3);
-          doc.text(`Generado: ${now.toLocaleString('es-CO')}`, pageW - margin - 45, pageH - 3);
-        },
-      });
-    }
-
     // Save
+    const clienteObj = clientes.find((c: any) => String(c.codigo_sap) === clienteSap);
     const fileName = `Traslado_MP_${clienteObj?.nombre || 'Todos'}_${fechaDesde}.pdf`;
     try {
-      if ('showSaveFilePicker' in window) {
-        const handle = await (window as any).showSaveFilePicker({ suggestedName: fileName, types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }] });
-        const writable = await handle.createWritable();
-        await writable.write(doc.output('arraybuffer'));
-        await writable.close();
-      } else { doc.save(fileName); }
+      doc.save(fileName);
       toast.success('PDF generado');
-    } catch (err: any) { if (err.name !== 'AbortError') toast.error('Error: ' + err.message); }
+    } catch (err: any) { 
+      toast.error('Error al generar PDF: ' + err.message); 
+    }
   };
 
   return (
@@ -848,7 +813,12 @@ function ExplosionTab({ clientes }: { clientes: any[] }) {
                     const formula = o.formulas;
                     return (
                       <tr key={o.id} style={{ opacity: checked ? 1 : 0.5 }}>
-                        <td>{o.estado_formulacion === 'LIQUIDADA' ? <span title="Ya liquidada" style={{ fontSize: '1.2rem', cursor: 'not-allowed' }}>🔒</span> : <input type="checkbox" checked={checked} onChange={() => toggleOp(o.id)} style={{ width: 18, height: 18, cursor: 'pointer' }} />}</td>
+                        <td>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <input type="checkbox" checked={checked} onChange={() => toggleOp(o.id)} style={{ width: 18, height: 18, cursor: 'pointer' }} />
+                            {o.estado_formulacion === 'LIQUIDADA' && <span title="Ya liquidada en inventario" style={{ fontSize: '1rem', cursor: 'help' }}>🔒</span>}
+                          </div>
+                        </td>
                         <td style={{ fontWeight: 700, color: '#1565C0' }}>{o.lote}</td>
                         <td style={{ fontSize: '0.85rem' }}>{o.fecha}</td>
                         <td style={{ fontSize: '0.85rem' }}>{o.maestro_alimentos?.descripcion || '—'}</td>

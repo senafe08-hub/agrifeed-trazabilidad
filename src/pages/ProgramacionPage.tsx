@@ -233,19 +233,9 @@ export default function ProgramacionPage() {
     XLSX.utils.book_append_sheet(wb, ws, 'PROGRAMACION');
 
     try {
-      if ('showSaveFilePicker' in window) {
-        const handle = await (window as any).showSaveFilePicker({
-          suggestedName: 'Programacion.xlsx',
-          types: [{ description: 'Excel', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }],
-        });
-        const writable = await handle.createWritable();
-        await writable.write(XLSX.write(wb, { bookType: 'xlsx', type: 'array' }));
-        await writable.close();
-      } else {
-        XLSX.writeFile(wb, 'Programacion.xlsx');
-      }
+      XLSX.writeFile(wb, 'Programacion.xlsx');
     } catch (e: any) {
-      if (e.name !== 'AbortError') alert("Error al exportar: " + e.message);
+      alert("Error al exportar: " + e.message);
     }
   };
 
