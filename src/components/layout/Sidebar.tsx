@@ -149,7 +149,7 @@ export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps)
         fontWeight: 'bold',
         whiteSpace: 'nowrap'
       }}>
-        Agrifeed v0.2.6 🚀
+        Agrifeed v0.2.7 🚀
       </div>
     </aside>
   );

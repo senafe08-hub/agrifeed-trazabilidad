@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Plus, Search, Edit2, Trash2, Download, Upload, ChevronLeft, ChevronRight, Calendar, FlaskConical, Link2, Zap } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Download, Upload, ChevronLeft, ChevronRight, Calendar, FlaskConical, Link2, Zap, FileText } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { usePermissions } from '../lib/permissions';
 import supabase from '../lib/supabase';
 import * as XLSX from 'xlsx';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import FormulacionPanel from './FormulacionPage';
 
 const PAGE_SIZE = 100;
@@ -233,10 +235,110 @@ export default function ProgramacionPage() {
     XLSX.utils.book_append_sheet(wb, ws, 'PROGRAMACION');
 
     try {
-      XLSX.writeFile(wb, 'Programacion.xlsx');
+      if ('showSaveFilePicker' in window) {
+        const handle = await (window as any).showSaveFilePicker({
+          suggestedName: `Programacion_${new Date().toISOString().split('T')[0]}.xlsx`,
+          types: [{ description: 'Excel Document', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(XLSX.write(wb, { bookType: 'xlsx', type: 'array' }));
+        await writable.close();
+      } else {
+        XLSX.writeFile(wb, `Programacion_${new Date().toISOString().split('T')[0]}.xlsx`);
+      }
     } catch (e: any) {
-      alert("Error al exportar: " + e.message);
+      if (e.name !== 'AbortError') { alert("Error al exportar Excel: " + e.message); }
     }
+  };
+
+  const exportToPDF = () => {
+    let tableData = [...filtered];
+    if (exportFechaDesde) tableData = tableData.filter(r => r.fecha >= exportFechaDesde);
+    if (exportFechaHasta) tableData = tableData.filter(r => r.fecha <= exportFechaHasta);
+    if (exportOpDesde) tableData = tableData.filter(r => Number(r.lote) >= Number(exportOpDesde));
+    if (exportOpHasta) tableData = tableData.filter(r => Number(r.lote) <= Number(exportOpHasta));
+
+    if (tableData.length === 0) { alert("No hay datos en ese rango para exportar."); return; }
+
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter' });
+    const img = new Image();
+    img.src = '/logo-agrifeed.png';
+
+    const renderPdfContent = async () => {
+      doc.setFontSize(16);
+      doc.setTextColor(40, 40, 40);
+      doc.text('PROGRAMA DE OP - PRODUCCIÓN', 60, 18);
+
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100);
+      const dateStr = exportFechaDesde && exportFechaHasta 
+        ? `Rango filtrado: ${exportFechaDesde} a ${exportFechaHasta}` 
+        : `Rango filtrado: Todo el histórico (según tabla visible)`;
+      doc.text(dateStr, 60, 24);
+
+      const body = tableData.map(r => [
+        r.fecha, 
+        r.lote, 
+        r.alimento_nombre, 
+        r.bultos_programados ? r.bultos_programados.toLocaleString() : '0', 
+        r.num_baches || '0', 
+        r.cliente_nombre || '-', 
+        r.observaciones || '-'
+      ]);
+
+      autoTable(doc, {
+        startY: 35,
+        head: [['Fecha', 'OP', 'Alimento', 'Bultos', 'Baches', 'Cliente', 'Observaciones']],
+        body: body,
+        theme: 'grid',
+        headStyles: { fillColor: [46, 125, 50], textColor: 255, fontStyle: 'bold' },
+        styles: { fontSize: 8, cellPadding: 2 },
+        columnStyles: {
+          0: { cellWidth: 20 },
+          1: { cellWidth: 15, fontStyle: 'bold' },
+          2: { cellWidth: 70 },
+          3: { cellWidth: 18, halign: 'right' },
+          4: { cellWidth: 16, halign: 'right' },
+          5: { cellWidth: 60 }
+        },
+        alternateRowStyles: { fillColor: [250, 250, 250] },
+        didDrawPage: (data: any) => {
+          doc.setFontSize(8);
+          doc.setTextColor(120, 120, 120);
+          doc.text(
+            `Página ${(doc.internal as any).getNumberOfPages()}`,
+            data.settings.margin.left,
+            doc.internal.pageSize.height - 8
+          );
+          const hoy = new Date().toLocaleString();
+          doc.text(`Impreso: ${hoy}`, 220, doc.internal.pageSize.height - 8);
+        }
+      });
+
+      try {
+        if ('showSaveFilePicker' in window) {
+          const handle = await (window as any).showSaveFilePicker({
+            suggestedName: `Programa_Produccion_${new Date().toISOString().split('T')[0]}.pdf`,
+            types: [{ description: 'PDF Document', accept: { 'application/pdf': ['.pdf'] } }]
+          });
+          const writable = await handle.createWritable();
+          await writable.write(doc.output('blob'));
+          await writable.close();
+        } else {
+          doc.save(`Programa_Produccion_${new Date().toISOString().split('T')[0]}.pdf`);
+        }
+      } catch (e: any) {
+        if (e.name !== 'AbortError') { alert("Error al exportar PDF: " + e.message); }
+      }
+    };
+
+    img.onload = () => {
+      doc.addImage(img, 'PNG', 14, 10, 40, 15);
+      renderPdfContent();
+    };
+    img.onerror = () => {
+      renderPdfContent(); // Generar igual si la imagen no carga
+    };
   };
 
   // ── IMPORT ──
@@ -380,7 +482,7 @@ export default function ProgramacionPage() {
             </button>
           )}
           <button className="btn btn-outline btn-sm" onClick={() => setShowExportRange(!showExportRange)}>
-            <Download size={16} /> Exportar Excel
+            <Download size={16} /> Exportar Reportes
           </button>
           {canEdit && (
             <button className="btn btn-primary btn-sm" onClick={() => handleOpenForm()}>
@@ -418,7 +520,10 @@ export default function ProgramacionPage() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
               <button className="btn btn-outline btn-sm" onClick={() => { setExportFechaDesde(''); setExportFechaHasta(''); setExportOpDesde(''); setExportOpHasta(''); }}>Limpiar Rango</button>
-              <button className="btn btn-primary btn-sm" onClick={exportToExcel}>
+              <button className="btn btn-sm" onClick={exportToPDF} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5' }}>
+                <FileText size={16} /> Descargar PDF
+              </button>
+              <button className="btn btn-primary btn-sm" onClick={exportToExcel} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <Download size={16} /> Descargar Excel
               </button>
             </div>

@@ -27,14 +27,20 @@ function ProgressBar({ current, total, colorHex }: { current: number; total: num
   );
 }
 
-function StatusIcon({ prog, ent, desp, fact }: { prog: number; ent: number; desp: number; fact: number }) {
-  if (prog === ent && ent === desp && desp === fact && prog > 0) {
+function StatusIcon({ bachesProg, bachesEnt, ent, desp, fact }: any) {
+  const bp = Number(bachesProg) || 0;
+  const be = Number(bachesEnt) || 0;
+  const e = Number(ent) || 0;
+  const d = Number(desp) || 0;
+  const f = Number(fact) || 0;
+
+  if (bp > 0 && be >= bp && e > 0 && d >= e && f >= d) {
     return <span className="badge badge-success"><CheckCircle2 size={12} style={{marginRight:4}} /> Completo</span>;
   }
-  if (ent === 0) {
+  if (be === 0) {
     return <span className="badge badge-neutral">Pendiente</span>;
   }
-  return <span className="badge badge-warning"><AlertTriangle size={12} style={{marginRight:4}} /> Incompleto</span>;
+  return <span className="badge badge-warning" title={`Debug: bP:${bp} bE:${be} e:${e} d:${d} f:${f}`}><AlertTriangle size={12} style={{marginRight:4}} /> Incompleto</span>;
 }
 
 export default function TrazabilidadPage() {
@@ -74,10 +80,10 @@ export default function TrazabilidadPage() {
       let query = supabase
         .from('programacion')
         .select(`
-          lote, fecha, bultos_programados,
+          lote, fecha, bultos_programados, num_baches,
           maestro_alimentos(descripcion, categoria),
           maestro_clientes(nombre),
-          produccion(bultos_entregados),
+          produccion(bultos_entregados, baches_entregados),
           despachos(bultos_despachados, bultos_danados)
         `);
       
@@ -105,9 +111,12 @@ export default function TrazabilidadPage() {
       if (rawData) {
         const processed = rawData.map(item => {
           const programado = item.bultos_programados || 0;
+          const bachesProgramados = item.num_baches || 0;
           let entregado = 0;
+          let bachesEntregados = 0;
           if (item.produccion && Array.isArray(item.produccion)) {
             entregado = item.produccion.reduce((acc, curr) => acc + (curr.bultos_entregados || 0), 0);
+            bachesEntregados = item.produccion.reduce((acc, curr) => acc + (curr.baches_entregados || 0), 0);
           }
           let despachado = 0;
           let danados = 0;
@@ -122,9 +131,9 @@ export default function TrazabilidadPage() {
           const cliente = (item.maestro_clientes as any)?.nombre || 'Sin Cliente';
 
           let estado = 'Incompleto';
-          if (programado === entregado && entregado === despachado && despachado === facturado && programado > 0) {
+          if (bachesProgramados > 0 && bachesEntregados >= bachesProgramados && entregado > 0 && despachado >= entregado && facturado >= despachado) {
             estado = 'Completo';
-          } else if (entregado === 0) {
+          } else if (bachesEntregados === 0) {
             estado = 'Pendiente';
           }
 
@@ -135,7 +144,9 @@ export default function TrazabilidadPage() {
             categoria,
             cliente,
             programado,
+            bachesProgramados,
             entregado,
+            bachesEntregados,
             despachado,
             danados,
             facturado,
@@ -350,13 +361,13 @@ export default function TrazabilidadPage() {
                     {/* PRODUCCIÓN */}
                     <td style={{ background: 'rgba(245, 158, 11, 0.01)' }}>
                       <div style={{ fontSize: '0.85rem' }}>
-                        P: <strong style={{color: '#f59e0b'}}>{row.programado}</strong>
+                        P: <strong style={{color: '#f59e0b'}}>{row.bachesProgramados} bch</strong> <span style={{fontSize: '0.7rem'}}>({row.programado} blt)</span>
                         <br/>
-                        E: <strong>{row.entregado}</strong>
+                        E: <strong>{row.bachesEntregados} bch</strong> <span style={{fontSize: '0.7rem'}}>({row.entregado} blt)</span>
                       </div>
                     </td>
                     <td style={{ background: 'rgba(245, 158, 11, 0.01)' }}>
-                      <ProgressBar current={row.entregado} total={row.programado} colorHex="#f59e0b" />
+                      <ProgressBar current={row.bachesEntregados} total={row.bachesProgramados} colorHex="#f59e0b" />
                     </td>
 
                     {/* LOGÍSTICA */}
@@ -377,7 +388,7 @@ export default function TrazabilidadPage() {
                       </div>
                     </td>
                     <td style={{ background: 'rgba(139, 92, 246, 0.01)' }}>
-                      <StatusIcon prog={row.programado} ent={row.entregado} desp={row.despachado} fact={row.facturado} />
+                      <StatusIcon bachesProg={row.bachesProgramados} bachesEnt={row.bachesEntregados} ent={row.entregado} desp={row.despachado} fact={row.facturado} />
                     </td>
                   </tr>
                 ))}
