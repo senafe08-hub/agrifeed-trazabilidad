@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { version as appVersion } from '../../../package.json';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -186,7 +187,7 @@ export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps)
         fontWeight: 'bold',
         whiteSpace: 'nowrap'
       }}>
-        Agrifeed v0.2.8 🚀
+        Agrifeed v{appVersion} 🚀
       </div>
 
       {/* Password Change Modal */}
