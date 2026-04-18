@@ -100,7 +100,6 @@ jobs:
       - name: 🏗️ Compilar Agrifeed (Tauri Build)
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         run: npm run tauri build -- --ci
 
       # ── 9. Localizar archivos generados ──
