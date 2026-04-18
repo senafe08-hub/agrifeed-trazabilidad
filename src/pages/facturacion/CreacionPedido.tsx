@@ -227,6 +227,28 @@ export default function CreacionPedido({ onRefreshKpis, isAdmin, canEdit = true 
     });
   };
 
+  // Update kg_pedido
+  const updateKgPedido = (idx: number, value: number) => {
+    setOpRows(prev => {
+      const next = [...prev];
+      const row = { ...next[idx] };
+      const maxKg = row.saldo_pendiente * 40;
+      if (value > maxKg) {
+        toast.error(`No puedes pedir más de ${maxKg} KG (saldo pendiente) para OP ${row.op}.`);
+        row.kg = maxKg;
+        row.bultos_pedido = row.saldo_pendiente;
+      } else if (value < 0) {
+        row.kg = 0;
+        row.bultos_pedido = 0;
+      } else {
+        row.kg = value;
+        row.bultos_pedido = value / 40;
+      }
+      next[idx] = row;
+      return next;
+    });
+  };
+
   // Add OP for anticipado
   const [opAnticipado, setOpAnticipado] = useState('');
   const addOPAnticipado = () => {
@@ -668,15 +690,29 @@ export default function CreacionPedido({ onRefreshKpis, isAdmin, canEdit = true 
                             style={{ width: 90, padding: '6px 8px' }}
                             min={0}
                             max={esAnticipado ? undefined : row.saldo_pendiente}
-                            value={row.bultos_pedido || ''}
+                            value={row.bultos_pedido === 0 ? '' : row.bultos_pedido}
                             onChange={e => {
-                              const val = e.target.value === '' ? 0 : parseInt(e.target.value);
+                              const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
                               updateBultosPedido(idx, val);
                             }}
                             disabled={!row.selected}
                           />
                         </td>
-                        <td style={{ fontWeight: 600 }}>{(row.bultos_pedido * 40).toLocaleString()}</td>
+                        <td>
+                          <input
+                            type="number"
+                            className="form-input"
+                            style={{ width: 100, padding: '6px 8px', fontWeight: 600 }}
+                            min={0}
+                            max={esAnticipado ? undefined : row.saldo_pendiente * 40}
+                            value={row.kg === 0 ? '' : row.kg}
+                            onChange={e => {
+                              const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                              updateKgPedido(idx, val);
+                            }}
+                            disabled={!row.selected}
+                          />
+                        </td>
                         {esAnticipado && (
                           <td>
                             <button className="btn btn-danger btn-sm btn-icon" onClick={() => removeOPAnticipado(idx)}>✕</button>
@@ -689,7 +725,7 @@ export default function CreacionPedido({ onRefreshKpis, isAdmin, canEdit = true 
                     <tr style={{ fontWeight: 700, background: 'rgba(46,125,50,0.06)' }}>
                       <td colSpan={esAnticipado ? 6 : 7} style={{ textAlign: 'right' }}>TOTAL</td>
                       <td>{opRows.filter(r => r.selected).reduce((s, r) => s + r.bultos_pedido, 0)}</td>
-                      <td>{(opRows.filter(r => r.selected).reduce((s, r) => s + r.bultos_pedido, 0) * 40).toLocaleString()}</td>
+                      <td>{opRows.filter(r => r.selected).reduce((s, r) => s + r.kg, 0)}</td>
                       {esAnticipado && <td></td>}
                     </tr>
                   </tfoot>

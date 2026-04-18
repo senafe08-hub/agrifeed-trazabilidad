@@ -207,10 +207,26 @@ export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit =
         for (const p of pendientes) {
            const opData = opsProg.find((o: any) => o.lote === p.op);
            if (!opData || !opData.formula_id) continue;
-           const sacosPorBache = (opData as any).formulas?.sacos_por_bache || 25;
-           const bachesEq = (p.bultos_despachados || p.bultos || 0) / sacosPorBache;
-           
            const formulaDet = formulasMap.get(opData.formula_id) || [];
+           
+           let sacosPorBache = (opData as any).formulas?.sacos_por_bache;
+           if (!sacosPorBache || sacosPorBache === 0) {
+              const sacoMat = formulaDet.find((m: any) => m.inventario_materiales?.nombre?.toUpperCase().includes('SACO'));
+              if (sacoMat && sacoMat.cantidad_base > 0) {
+                 sacosPorBache = sacoMat.cantidad_base;
+              } else {
+                 const totalKgFormula = formulaDet.reduce((s: number, m: any) => {
+                    const nom = m.inventario_materiales?.nombre?.toUpperCase() || '';
+                    if (nom.includes('SACO') || nom.includes('ETIQUETA') || nom.includes('HILO')) return s;
+                    return s + (Number(m.cantidad_base) || 0);
+                 }, 0);
+                 sacosPorBache = totalKgFormula > 0 ? Math.round(totalKgFormula / 40) : 25;
+              }
+           }
+           if (sacosPorBache <= 0) sacosPorBache = 25;
+
+           const bachesEq = (p.bultos || 0) / sacosPorBache;
+           
            for (const mat of formulaDet) {
               const kgCon = mat.cantidad_base * bachesEq;
               if (kgCon > 0) {
@@ -218,6 +234,7 @@ export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit =
                     'N° Factura': p.num_factura,
                     'Cliente': p.nombre_cliente,
                     'Descripción Alimento': p.referencia,
+                    'Categoría': mat.referencia || 'SIN CLASIFICAR',
                     'Código Materia Prima': mat.inventario_materiales?.codigo || '',
                     'Materia Prima': mat.inventario_materiales?.nombre || '',
                     'Total KG': Number(kgCon.toFixed(2)),
@@ -416,7 +433,7 @@ export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit =
               ref={scrollRef}
               style={{ maxHeight: 'calc(100vh - 380px)', overflow: 'auto' }}
             >
-              <table className="data-table" style={{ width: '100%' }}>
+              <table className="data-table" style={{ width: '100%', minWidth: 1800, whiteSpace: 'nowrap' }}>
                 <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
                   <tr>
                     <th style={{ verticalAlign: 'top', width: 60, textAlign: 'center' }}>Matrizada</th>
@@ -471,10 +488,10 @@ export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit =
                           )}
                         </td>
                         <td>{row.fecha_despacho || '—'}</td>
-                        <td style={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.nombre_cliente || '—'}</td>
+                        <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.nombre_cliente}>{row.nombre_cliente || '—'}</td>
                         <td style={{ fontFamily: 'monospace', fontSize: '0.78rem' }}>{row.codigo_cliente || '—'}</td>
                         <td style={{ fontWeight: 700 }}>{row.op}</td>
-                        <td style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.referencia || '—'}</td>
+                        <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.referencia}>{row.referencia || '—'}</td>
                         <td style={{ fontFamily: 'monospace' }}>{row.codigo_alimento || '—'}</td>
                         <td style={{ fontWeight: 600 }}>{row.bultos}</td>
                         <td>{(row.kg || 0).toLocaleString()}</td>

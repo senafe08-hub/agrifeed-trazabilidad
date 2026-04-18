@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { version as appVersion } from '../../../package.json';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
@@ -12,8 +12,6 @@ import {
   Settings,
   LogOut,
   ChevronRight,
-  ChevronLeft,
-  Menu,
   Key
 } from 'lucide-react';
 import { ROLE_PERMISSIONS } from '../../lib/permissions';
@@ -55,6 +53,43 @@ interface SidebarProps {
 export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps) {
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  const [indicatorTop, setIndicatorTop] = useState(0);
+
+  // Lógica de colapso automático al hacer click fuera
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      // Si el click fue fuera del sidebar, lo contraemos
+      if (sidebarRef.current && !sidebarRef.current.contains(event.target as Node)) {
+        setIsCollapsed(true);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  // Calcular posición del indicador dorado al cambiar ruta
+  useEffect(() => {
+    if (!sidebarRef.current) return;
+    // Buscamos el elemento activo dentro de la navegación
+    const activeLink = sidebarRef.current.querySelector('.sidebar-link.active') as HTMLElement;
+    if (activeLink) {
+      setIndicatorTop(activeLink.offsetTop);
+    }
+  }, [location.pathname, isCollapsed]);
+
+  // Si hacen clic en cualquier parte vacía del panel, se expande
+  const handleSidebarClick = () => {
+    if (isCollapsed) setIsCollapsed(false);
+  };
+
+  // Si hacen clic en un módulo para navegar, se contrae el panel
+  const handleLinkClick = (e: React.MouseEvent) => {
+    setIsCollapsed(true);
+    e.stopPropagation(); // Evitar que el clic llegue al sidebar y lo vuelva a abrir
+  };
 
   // Password modal state
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -87,14 +122,16 @@ export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps)
   };
 
   return (
-    <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
-      <button
-        className="sidebar-toggle"
-        onClick={() => setIsCollapsed(!isCollapsed)}
-        title={isCollapsed ? 'Expandir menú' : 'Contraer menú'}
-      >
-        {isCollapsed ? <Menu size={16} /> : <ChevronLeft size={16} />}
-      </button>
+    <>
+      <aside 
+        className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}
+      ref={sidebarRef}
+      onClick={handleSidebarClick}
+    >
+      <div className="sidebar-particles-container">
+        <div className="sidebar-particle p1"></div>
+        <div className="sidebar-particle p2"></div>
+      </div>
 
       <div className="sidebar-brand">
         <div style={{
@@ -118,6 +155,7 @@ export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps)
       </div>
 
       <nav className="sidebar-nav">
+        <div className="sidebar-active-indicator" style={{ top: `${indicatorTop}px`, opacity: indicatorTop > 0 ? 1 : 0 }}></div>
         {navItems.map((section) => {
           const roleData = ROLE_PERMISSIONS[userRole] || { canView: [] };
           const isRoleAdmin = userRole === 'Administrador';
@@ -136,6 +174,7 @@ export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps)
                 <NavLink
                   key={item.path}
                   to={item.path}
+                  onClick={handleLinkClick}
                   className={({ isActive }) =>
                     `sidebar-link ${isActive && location.pathname === item.path ? 'active' : ''}`
                   }
@@ -151,7 +190,7 @@ export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps)
         })}
       </nav>
 
-      <div className="sidebar-user">
+      <div className="sidebar-user" style={!isCollapsed ? { margin: '0 10px 10px', background: 'rgba(255,255,255,0.08)', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)' } : { borderTop: 'none' }}>
         <div className="sidebar-user-avatar">
           {getInitials(userEmail)}
         </div>
@@ -189,6 +228,8 @@ export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps)
       }}>
         Agrifeed v{appVersion} 🚀
       </div>
+
+      </aside>
 
       {/* Password Change Modal */}
       {showPasswordModal && (
@@ -237,6 +278,6 @@ export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps)
           </div>
         </div>
       )}
-    </aside>
+    </>
   );
 }

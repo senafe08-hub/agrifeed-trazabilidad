@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Agrifeed - Opciones de Sidebar</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+
+    body {
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 40px;
+      background: #f0f4ee;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 40px;
+      justify-content: center;
+    }
+
+    .demo-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 15px;
+    }
+
+    h2 {
+      font-size: 1.1rem;
+      color: #2E7D32;
+      margin: 0;
+      text-align: center;
+      max-width: 260px;
+    }
+
+    /* BASE SIDEBAR (Actual) */
+    .sidebar {
+      width: 260px;
+      height: 500px;
+      background: linear-gradient(180deg, #1B5E20 0%, #153d17 100%);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      color: white;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+      position: relative;
+    }
+
+    .brand {
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .brand-icon {
+      width: 40px; height: 40px;
+      background: linear-gradient(135deg, #66BB6A, #2E7D32);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 1.2rem;
+    }
+
+    .nav {
+      padding: 12px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .link {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      color: rgba(255,255,255,0.9);
+      font-size: 0.9rem; font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      position: relative;
+    }
+
+    .icon { width: 20px; height: 20px; background: rgba(255,255,255,0.8); border-radius: 4px; }
+    
+    /* -------------------------------------
+       OPCIÓN 1: Micro-animaciones
+       ------------------------------------- */
+    .opt-1 .link { transition: all 0.2s ease; }
+    .opt-1 .link:hover { background: rgba(255,255,255,0.1); }
+    .opt-1 .link:hover .icon { transform: translateX(3px) scale(1.05); transition: all 0.2s; background: white; }
+    .opt-1 .link.active { background: rgba(255,255,255,0.15); font-weight: 600; }
+    .opt-1 .link.active::before {
+      content: ''; position: absolute; left: 0; width: 3px; height: 24px;
+      background: #F9A825; border-radius: 0 3px 3px 0;
+      animation: pulseGlow 2s infinite;
+    }
+    @keyframes pulseGlow { 0%, 100% { box-shadow: 0 0 5px #F9A825; } 50% { box-shadow: 0 0 15px #F9A825; } }
+
+    /* -------------------------------------
+       OPCIÓN 2: Glassmorphism
+       ------------------------------------- */
+    .opt-2 {
+      background: linear-gradient(180deg, rgba(27,94,32,0.85) 0%, rgba(21,61,23,0.9) 100%);
+      backdrop-filter: blur(15px);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .opt-2 .link { transition: all 0.3s ease; }
+    .opt-2 .link:hover { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.05); }
+    .opt-2 .link.active {
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.2);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+
+    /* -------------------------------------
+       OPCIÓN 3: Badges + Tooltips
+       ------------------------------------- */
+    .opt-3 .link:hover { background: rgba(255,255,255,0.1); }
+    .badge {
+      margin-left: auto; background: #E65100; color: white;
+      font-size: 0.7rem; padding: 2px 6px; border-radius: 10px;
+      font-weight: 800; animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    @keyframes bounceIn { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+
+    /* -------------------------------------
+       OPCIÓN 4: Indicador Flotante
+       ------------------------------------- */
+    .opt-4 { position: relative; }
+    .opt-4 .link:hover { background: rgba(255,255,255,0.1); }
+    .floating-indicator {
+      position: absolute; left: 10px; width: 3px; height: 38px;
+      background: linear-gradient(180deg, #FFD54F, #F9A825);
+      border-radius: 3px; top: 125px; /* Positioned at 'Producción' */
+      transition: top 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 0 10px rgba(249,168,37,0.6);
+      z-index: 10;
+    }
+    .opt-4 .link.active { font-weight: 600; color: #FFD54F; }
+    .opt-4 .link.active .icon { background: #FFD54F; }
+
+    /* -------------------------------------
+       OPCIÓN 5: Partículas
+       ------------------------------------- */
+    .opt-5 { position: relative; overflow: hidden; }
+    .particle {
+      position: absolute; border-radius: 50%; background: rgba(249,168,37,0.15);
+      filter: blur(8px); animation: float 10s infinite ease-in-out; pointer-events: none;
+    }
+    .p1 { width: 100px; height: 100px; top: -20px; left: -20px; }
+    .p2 { width: 150px; height: 150px; bottom: 50px; right: -50px; animation-delay: -5s; background: rgba(102,187,106,0.15); }
+    @keyframes float { 0%, 100% { transform: translate(0,0); } 50% { transform: translate(20px, 20px); } }
+    .opt-5 .link:hover { background: rgba(255,255,255,0.1); }
+
+    /* -------------------------------------
+       OPCIÓN 6: Rediseño Premium Completo
+       ------------------------------------- */
+    .opt-6 {
+      background: linear-gradient(180deg, rgba(27,94,32,0.9) 0%, rgba(21,61,23,0.95) 100%);
+      backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.15);
+    }
+    .opt-6 .brand-icon { animation: pulseLogo 3s infinite; }
+    @keyframes pulseLogo { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.03); box-shadow: 0 0 15px rgba(102,187,106,0.4); } }
+    .opt-6 .link { transition: all 0.3s cubic-bezier(0.4,0,0.2,1); }
+    .opt-6 .link:hover { background: rgba(255,255,255,0.12); transform: translateX(4px); border: 1px solid rgba(255,255,255,0.05); }
+    .opt-6 .link.active { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 15px rgba(0,0,0,0.1); color: #FFD54F;}
+    .opt-6 .link.active .icon { background: #FFD54F; }
+    .opt-6 .user-card {
+      margin-top: auto; padding: 15px; margin: 10px; background: rgba(255,255,255,0.1);
+      border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; gap: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Base (Actual) -->
+  <div class="demo-container">
+    <h2>Actual (Base)</h2>
+    <div class="sidebar">
+      <div class="brand"><div class="brand-icon">A</div><div><strong>Agrifeed</strong><br><small>TRAZABILIDAD</small></div></div>
+      <div class="nav">
+        <div class="link"><div class="icon"></div>Dashboard</div>
+        <div class="link active"><div class="icon"></div>Programación</div>
+        <div class="link"><div class="icon"></div>Producción</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Opción 1 -->
+  <div class="demo-container">
+    <h2>1. Micro-animaciones<br><small>(Pasa el mouse sobre los links)</small></h2>
+    <div class="sidebar opt-1">
+      <div class="brand"><div class="brand-icon">A</div><div><strong>Agrifeed</strong><br><small>TRAZABILIDAD</small></div></div>
+      <div class="nav">
+        <div class="link"><div class="icon"></div>Dashboard</div>
+        <div class="link active"><div class="icon"></div>Programación</div>
+        <div class="link"><div class="icon"></div>Producción</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Opción 2 -->
+  <div class="demo-container">
+    <h2>2. Glassmorphism<br><small>(Fondo translúcido tipo cristal)</small></h2>
+    <div class="sidebar opt-2">
+      <div class="brand"><div class="brand-icon">A</div><div><strong>Agrifeed</strong><br><small>TRAZABILIDAD</small></div></div>
+      <div class="nav">
+        <div class="link"><div class="icon"></div>Dashboard</div>
+        <div class="link active"><div class="icon"></div>Programación</div>
+        <div class="link"><div class="icon"></div>Producción</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Opción 3 -->
+  <div class="demo-container">
+    <h2>3. Badges + Tooltips<br><small>(Notificaciones dinámicas)</small></h2>
+    <div class="sidebar opt-3">
+      <div class="brand"><div class="brand-icon">A</div><div><strong>Agrifeed</strong><br><small>TRAZABILIDAD</small></div></div>
+      <div class="nav">
+        <div class="link"><div class="icon"></div>Dashboard</div>
+        <div class="link active"><div class="icon"></div>Programación <span class="badge">3</span></div>
+        <div class="link"><div class="icon"></div>Producción</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Opción 4 -->
+  <div class="demo-container">
+    <h2>4. Indicador Animado<br><small>(Barra lateral flotante y dorada)</small></h2>
+    <div class="sidebar opt-4">
+      <div class="floating-indicator"></div>
+      <div class="brand"><div class="brand-icon">A</div><div><strong>Agrifeed</strong><br><small>TRAZABILIDAD</small></div></div>
+      <div class="nav">
+        <div class="link"><div class="icon"></div>Dashboard</div>
+        <div class="link"><div class="icon"></div>Programación</div>
+        <div class="link active"><div class="icon"></div>Producción</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Opción 5 -->
+  <div class="demo-container">
+    <h2>5. Partículas<br><small>(Esferas de luz flotando en el fondo)</small></h2>
+    <div class="sidebar opt-5">
+      <div class="particle p1"></div>
+      <div class="particle p2"></div>
+      <div class="brand"><div class="brand-icon">A</div><div><strong>Agrifeed</strong><br><small>TRAZABILIDAD</small></div></div>
+      <div class="nav">
+        <div class="link"><div class="icon"></div>Dashboard</div>
+        <div class="link active"><div class="icon"></div>Programación</div>
+        <div class="link"><div class="icon"></div>Producción</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Opción 6 -->
+  <div class="demo-container">
+    <h2>6. Premium (Todo Combinado)</h2>
+    <div class="sidebar opt-6">
+      <div class="particle p1"></div>
+      <div class="particle p2"></div>
+      <div class="floating-indicator" style="top: 125px;"></div>
+      <div class="brand"><div class="brand-icon">A</div><div><strong>Agrifeed</strong><br><small>TRAZABILIDAD</small></div></div>
+      <div class="nav">
+        <div class="link"><div class="icon"></div>Dashboard</div>
+        <div class="link"><div class="icon"></div>Programación</div>
+        <div class="link active"><div class="icon"></div>Producción <span class="badge">1</span></div>
+      </div>
+      <div class="user-card">
+        <div style="width:30px;height:30px;background:#A5C096;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;font-size:0.8rem;font-weight:bold;">AD</div>
+        <div style="display:flex;flex-direction:column;font-size:0.8rem;color:white;">
+          <strong>admin</strong>
+          <span style="color:rgba(255,255,255,0.6);font-size:0.7rem;">Administrador</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

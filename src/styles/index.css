@@ -143,43 +143,49 @@ h4 { font-size: 1.125rem; }
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
   height: 100vh;
-  background: linear-gradient(180deg, var(--green-900) 0%, #153d17 100%);
+  background: linear-gradient(180deg, rgba(27, 94, 32, 0.92) 0%, rgba(21, 61, 23, 0.96) 100%);
+  backdrop-filter: blur(20px);
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
   display: flex;
   flex-direction: column;
   transition: width var(--transition-base), min-width var(--transition-base);
-  /* removed overflow: hidden so toggle button can break out if needed, but inner content handles it */
   z-index: 100;
   position: relative;
+}
+
+.sidebar-particles-container {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.sidebar-particle {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(12px);
+  animation: floatParticle 10s infinite ease-in-out;
+}
+
+.sidebar-particle.p1 {
+  width: 150px; height: 150px; background: rgba(249, 168, 37, 0.15);
+  top: -30px; left: -30px;
+}
+
+.sidebar-particle.p2 {
+  width: 200px; height: 200px; background: rgba(102, 187, 106, 0.12);
+  bottom: 80px; right: -50px; animation-delay: -5s;
+}
+
+@keyframes floatParticle {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(20px, 20px); }
 }
 
 .sidebar.collapsed {
   width: var(--sidebar-collapsed-width);
   min-width: var(--sidebar-collapsed-width);
-}
-
-.sidebar-toggle {
-  position: absolute;
-  top: 50%;
-  right: -14px;
-  transform: translateY(-50%);
-  width: 28px;
-  height: 28px;
-  background: var(--bg-surface);
-  border: 1px solid var(--border-color);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: var(--text-secondary);
-  box-shadow: var(--shadow-sm);
-  z-index: 10;
-  transition: all var(--transition-fast);
-}
-
-.sidebar-toggle:hover {
-  background: var(--green-50);
-  color: var(--color-primary);
 }
 
 .sidebar-brand {
@@ -188,8 +194,9 @@ h4 { font-size: 1.125rem; }
   align-items: center;
   gap: 12px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  overflow: hidden;
   min-height: 80px;
+  position: relative;
+  z-index: 1;
 }
 .sidebar.collapsed .sidebar-brand {
   padding: 20px 0;
@@ -233,6 +240,21 @@ h4 { font-size: 1.125rem; }
   display: flex;
   flex-direction: column;
   gap: 2px;
+  position: relative;
+  z-index: 1;
+}
+
+.sidebar-active-indicator {
+  position: absolute;
+  left: 0;
+  width: 4px;
+  height: 38px;
+  background: linear-gradient(180deg, #FFD54F, #F9A825);
+  border-radius: 0 4px 4px 0;
+  transition: top 350ms cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 12px rgba(249, 168, 37, 0.5);
+  z-index: 2;
+  pointer-events: none;
 }
 
 .sidebar-section-label {
@@ -258,13 +280,15 @@ h4 { font-size: 1.125rem; }
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--transition-fast);
-  border: none;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid transparent;
   background: none;
   width: 100%;
   text-align: left;
   white-space: nowrap;
   overflow: hidden;
+  position: relative;
+  z-index: 3;
 }
 .sidebar.collapsed .sidebar-link {
   padding: 10px;
@@ -276,23 +300,17 @@ h4 { font-size: 1.125rem; }
 }
 
 .sidebar-link:hover {
-  background: var(--bg-sidebar-hover);
+  background: rgba(255, 255, 255, 0.12);
+  transform: translateX(4px);
+  border-color: rgba(255, 255, 255, 0.05);
 }
 
 .sidebar-link.active {
   background: rgba(255, 255, 255, 0.15);
-  color: #FFFFFF;
+  color: #FFD54F;
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
   font-weight: 600;
-}
-
-.sidebar-link.active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  width: 3px;
-  height: 24px;
-  background: var(--gold-500);
-  border-radius: 0 3px 3px 0;
 }
 
 .sidebar-link svg,
@@ -301,11 +319,13 @@ h4 { font-size: 1.125rem; }
   height: 20px;
   opacity: 0.8;
   flex-shrink: 0;
+  transition: all 0.3s ease;
 }
 
 .sidebar-link.active svg,
 .sidebar-link.active .icon {
   opacity: 1;
+  color: #FFD54F;
 }
 
 .sidebar-user {
@@ -315,6 +335,8 @@ h4 { font-size: 1.125rem; }
   align-items: center;
   gap: 12px;
   white-space: nowrap;
+  position: relative;
+  z-index: 1;
 }
 .sidebar.collapsed .sidebar-user {
   padding: 16px 0;
@@ -330,7 +352,8 @@ h4 { font-size: 1.125rem; }
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: var(--sage-500);
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   display: flex;
   align-items: center;
   justify-content: center;

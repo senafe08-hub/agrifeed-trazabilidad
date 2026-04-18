@@ -127,6 +127,11 @@ export default function AsignacionFactura({ onRefreshKpis, isAdmin, canEdit = tr
     return (p.num_pedido || '').toLowerCase().includes(term) ||
       (p.nombre_cliente || '').toLowerCase().includes(term) ||
       String(p.num_remision || '').includes(term);
+  }).sort((a, b) => {
+    const gA = pedidoGroups.findIndex(g => g.includes(a.id));
+    const gB = pedidoGroups.findIndex(g => g.includes(b.id));
+    if (gA !== gB) return gA - gB;
+    return a.id - b.id;
   });
 
   // Get all unique OPs from selected pedidos
@@ -319,8 +324,12 @@ export default function AsignacionFactura({ onRefreshKpis, isAdmin, canEdit = tr
                     <tr 
                       key={p.id} 
                       className={`select-row ${isSelected ? 'selected' : ''}`} 
-                      onClick={() => toggleSelect(p.id)}
-                      style={isInterconnected ? { background: 'rgba(59, 130, 246, 0.05)' } : {}}
+                      onClick={() => {
+                        const sel = window.getSelection();
+                        if (sel && sel.toString().length > 0) return;
+                        toggleSelect(p.id);
+                      }}
+                      style={isInterconnected ? { borderLeft: '4px solid var(--primary-color)', background: 'rgba(59, 130, 246, 0.05)' } : { borderLeft: '4px solid transparent' }}
                     >
                       <td onClick={e => e.stopPropagation()}>
                         <input
@@ -330,7 +339,14 @@ export default function AsignacionFactura({ onRefreshKpis, isAdmin, canEdit = tr
                           onChange={() => toggleSelect(p.id)}
                         />
                       </td>
-                      <td style={{ fontWeight: 700 }}>{p.num_pedido || '—'}</td>
+                      <td style={{ fontWeight: 700 }}>
+                        {p.num_pedido || '—'}
+                        {isInterconnected && (
+                          <div style={{ fontSize: '0.65rem', color: 'var(--primary-color)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                            🔗 ESCALERA
+                          </div>
+                        )}
+                      </td>
                       <td>
                         {p.num_remision || (p.es_anticipado
                           ? <span className="estado-tag anticipado" style={{ fontSize: '0.68rem' }}>Anticipado</span>
@@ -359,7 +375,7 @@ export default function AsignacionFactura({ onRefreshKpis, isAdmin, canEdit = tr
                                   <td>{d.referencia || '—'}</td>
                                   <td style={{ fontFamily: 'monospace' }}>{d.codigo_alimento || '—'}</td>
                                   <td>{d.bultos_pedido}</td>
-                                  <td>{(d.bultos_pedido * 40).toLocaleString()}</td>
+                                  <td>{(d.bultos_pedido * 40)}</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -367,10 +383,9 @@ export default function AsignacionFactura({ onRefreshKpis, isAdmin, canEdit = tr
                         </div>
                       </td>
                       <td style={{ fontWeight: 700 }}>{totalBultos}</td>
-                      <td>{totalKg.toLocaleString()}</td>
+                      <td>{totalKg}</td>
                       <td>
                         {renderEstado(p.estado)}
-                        {isInterconnected && <div style={{ fontSize: '0.65rem', color: 'var(--primary-color)', marginTop: 4, fontWeight: 700 }}>ESCALERA (Relacionado)</div>}
                       </td>
                       {canEdit && (
                         <td onClick={e => e.stopPropagation()}>
