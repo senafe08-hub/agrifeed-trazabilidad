@@ -58,14 +58,17 @@ $pkgPath = Join-Path $PSScriptRoot "package.json"
 $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
 $oldVersion = $pkg.version
 $pkg.version = $Version
-$pkg | ConvertTo-Json -Depth 10 | Set-Content $pkgPath -Encoding UTF8
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+$pkgJson = $pkg | ConvertTo-Json -Depth 10
+[System.IO.File]::WriteAllText($pkgPath, $pkgJson, $utf8NoBom)
 Write-Host "[1/5] package.json: $oldVersion -> $Version" -ForegroundColor Yellow
 
 # ── 2. Actualizar tauri.conf.json ──
 $tauriPath = Join-Path $PSScriptRoot "src-tauri\tauri.conf.json"
 $tauri = Get-Content $tauriPath -Raw | ConvertFrom-Json
 $tauri.version = $Version
-$tauri | ConvertTo-Json -Depth 10 | Set-Content $tauriPath -Encoding UTF8
+$tauriJson = $tauri | ConvertTo-Json -Depth 10
+[System.IO.File]::WriteAllText($tauriPath, $tauriJson, $utf8NoBom)
 Write-Host "[2/5] tauri.conf.json: $oldVersion -> $Version" -ForegroundColor Yellow
 
 # ── 3. Commit ──
