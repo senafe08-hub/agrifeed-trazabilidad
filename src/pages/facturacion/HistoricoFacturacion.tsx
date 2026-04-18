@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Search, Download, Upload, XCircle, ChevronLeft, ChevronRight, History, Trash2, Calendar } from 'lucide-react';
 import { fetchHistoricoFacturacion, anularFactura, eliminarFactura, importarHistoricoFacturasExcel, toggleMatrizadaFactura, fetchOPsConFormula, fetchFormulaConDetalle } from '../../lib/supabase';
 import { toast } from '../../components/Toast';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import * as XLSX from 'xlsx';
 
-const PAGE_SIZE = 100;
+const PAGE_SIZE = 200; // Increased from 100 — virtualizer handles the DOM load
 
 export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit = true, userRole }: { onRefreshKpis?: () => void; isAdmin?: boolean; canEdit?: boolean; userRole?: string }) {
   const [data, setData] = useState<any[]>([]);
@@ -297,8 +298,38 @@ export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit =
     return <span className="estado-tag facturada">FACTURADA</span>;
   };
 
-  // Unique factura IDs (to show anular button only once per factura)
-  const facturaIdsShown = new Set<number | string>();
+  // Pre-compute per-row flags for virtualized rendering
+  // (can't use mutable Set inside render with virtualization)
+  const rowFlags = useMemo(() => {
+    const flags: Record<number, { showAnular: boolean; showMatrizada: boolean; showDelete: boolean }> = {};
+    const seen = new Set<number>();
+    const matSeen = new Set<number>();
+    const delSeen = new Set<number>();
+    for (let i = 0; i < paginatedData.length; i++) {
+      const row = paginatedData[i];
+      const fId = row.factura_id;
+      flags[i] = {
+        showAnular: row.estado_factura !== 'ANULADA' && !seen.has(fId),
+        showMatrizada: !matSeen.has(fId),
+        showDelete: !delSeen.has(fId),
+      };
+      if (row.estado_factura !== 'ANULADA') seen.add(fId);
+      matSeen.add(fId);
+      delSeen.add(fId);
+    }
+    return flags;
+  }, [paginatedData]);
+
+  // Virtualized scrolling
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const ROW_HEIGHT = 38;
+  const virtualizer = useVirtualizer({
+    count: paginatedData.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 10,
+  });
+
 
   return (
     <div className="fact-tab-content">
@@ -370,116 +401,124 @@ export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit =
           </div>
         </div>
         <div className="card-body" style={{ padding: 0 }}>
-          <div className="data-table-wrapper" style={{ maxHeight: 'calc(100vh - 380px)' }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th style={{ verticalAlign: 'top', width: 60, textAlign: 'center' }}>Matrizada</th>
-                  <th style={{ verticalAlign: 'top' }}>Remisión {renderFilterInput('num_remision')}</th>
-                  <th style={{ verticalAlign: 'top' }}>F. Despacho</th>
-                  <th style={{ verticalAlign: 'top' }}>Cliente {renderFilterInput('nombre_cliente')}</th>
-                  <th style={{ verticalAlign: 'top' }}>Cód. Cl.</th>
-                  <th style={{ verticalAlign: 'top' }}>OP {renderFilterInput('op')}</th>
-                  <th style={{ verticalAlign: 'top' }}>Referencia {renderFilterInput('referencia')}</th>
-                  <th style={{ verticalAlign: 'top' }}>Cód. Alim.</th>
-                  <th style={{ verticalAlign: 'top' }}>Bultos</th>
-                  <th style={{ verticalAlign: 'top' }}>KG</th>
-                  <th style={{ verticalAlign: 'top' }}>N° Pedido {renderFilterInput('num_pedido')}</th>
-                  <th style={{ verticalAlign: 'top' }}>N° Entrega</th>
-                  <th style={{ verticalAlign: 'top' }}>Orden SAP</th>
-                  <th style={{ verticalAlign: 'top' }}>N° Factura {renderFilterInput('num_factura')}</th>
-                  <th style={{ verticalAlign: 'top' }}>F. Factura</th>
-                  <th style={{ verticalAlign: 'top' }}>Estado {renderFilterInput('estado_factura')}</th>
-                  {canEdit && <th style={{ verticalAlign: 'top', width: 90 }}>Acciones</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr><td colSpan={16} style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>
-                    Cargando histórico de facturación...
-                  </td></tr>
-                ) : paginatedData.length === 0 ? (
-                  <tr><td colSpan={16}>
-                    <div className="fact-empty">
-                      <History size={48} />
-                      <h3>Sin registros</h3>
-                      <p>No hay facturas registradas en el histórico.</p>
-                    </div>
-                  </td></tr>
-                ) : paginatedData.map((row, idx) => {
-                  const showAnular = row.estado_factura !== 'ANULADA' && !facturaIdsShown.has(row.factura_id);
-                  if (row.estado_factura !== 'ANULADA') facturaIdsShown.add(row.factura_id);
-                  const showRowMatrizadaCheckbox = !facturaIdsShown.has('mat_' + row.factura_id);
-                  facturaIdsShown.add('mat_' + row.factura_id);
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>
+              Cargando histórico de facturación...
+            </div>
+          ) : paginatedData.length === 0 ? (
+            <div className="fact-empty">
+              <History size={48} />
+              <h3>Sin registros</h3>
+              <p>No hay facturas registradas en el histórico.</p>
+            </div>
+          ) : (
+            <div
+              ref={scrollRef}
+              style={{ maxHeight: 'calc(100vh - 380px)', overflow: 'auto' }}
+            >
+              <table className="data-table" style={{ width: '100%' }}>
+                <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
+                  <tr>
+                    <th style={{ verticalAlign: 'top', width: 60, textAlign: 'center' }}>Matrizada</th>
+                    <th style={{ verticalAlign: 'top' }}>Remisión {renderFilterInput('num_remision')}</th>
+                    <th style={{ verticalAlign: 'top' }}>F. Despacho</th>
+                    <th style={{ verticalAlign: 'top' }}>Cliente {renderFilterInput('nombre_cliente')}</th>
+                    <th style={{ verticalAlign: 'top' }}>Cód. Cl.</th>
+                    <th style={{ verticalAlign: 'top' }}>OP {renderFilterInput('op')}</th>
+                    <th style={{ verticalAlign: 'top' }}>Referencia {renderFilterInput('referencia')}</th>
+                    <th style={{ verticalAlign: 'top' }}>Cód. Alim.</th>
+                    <th style={{ verticalAlign: 'top' }}>Bultos</th>
+                    <th style={{ verticalAlign: 'top' }}>KG</th>
+                    <th style={{ verticalAlign: 'top' }}>N° Pedido {renderFilterInput('num_pedido')}</th>
+                    <th style={{ verticalAlign: 'top' }}>N° Entrega</th>
+                    <th style={{ verticalAlign: 'top' }}>Orden SAP</th>
+                    <th style={{ verticalAlign: 'top' }}>N° Factura {renderFilterInput('num_factura')}</th>
+                    <th style={{ verticalAlign: 'top' }}>F. Factura</th>
+                    <th style={{ verticalAlign: 'top' }}>Estado {renderFilterInput('estado_factura')}</th>
+                    {canEdit && <th style={{ verticalAlign: 'top', width: 90 }}>Acciones</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Top spacer for virtualization */}
+                  {virtualizer.getVirtualItems().length > 0 && virtualizer.getVirtualItems()[0].start > 0 && (
+                    <tr><td colSpan={canEdit ? 17 : 16} style={{ height: virtualizer.getVirtualItems()[0].start, padding: 0, border: 'none' }} /></tr>
+                  )}
+                  {virtualizer.getVirtualItems().map(virtualRow => {
+                    const idx = virtualRow.index;
+                    const row = paginatedData[idx];
+                    const flags = rowFlags[idx] || { showAnular: false, showMatrizada: false, showDelete: false };
 
-                  const isPiciz = userRole === 'Coordinador PICIZ' || userRole?.toLowerCase().includes('piciz');
-                  const canToggleMatrizado = canEdit || isPiciz;
-                  const disableToggle = !!row.matrizada && !isAdmin; // Only Admin can uncheck it
+                    const isPiciz = userRole === 'Coordinador PICIZ' || userRole?.toLowerCase().includes('piciz');
+                    const canToggleMatrizado = canEdit || isPiciz;
+                    const disableToggle = !!row.matrizada && !isAdmin;
 
-                  return (
-                    <tr key={idx} style={row.estado_factura === 'ANULADA' ? { opacity: 0.5, textDecoration: 'line-through' } : {}}>
-                      <td style={{ textAlign: 'center' }}>
-                        {showRowMatrizadaCheckbox && row.estado_factura !== 'ANULADA' && canToggleMatrizado ? (
-                           <label className="switch-sm" title={disableToggle ? "Solo el Administrador puede desmarcar" : "Marcar como procesado por PICIZ"} style={{ opacity: disableToggle ? 0.6 : 1 }}>
-                             <input type="checkbox" checked={!!row.matrizada} disabled={disableToggle} onChange={() => handleToggleMatrizada(row.factura_id, !!row.matrizada)} />
-                             <span className="slider round"></span>
-                           </label>
-                        ) : row.matrizada ? (
-                          <span style={{ fontSize: '0.8rem', color: 'var(--color-success)', fontWeight: 600 }}>Sí</span>
-                        ) : null}
-                      </td>
-                      <td>
-                        {row.num_remision || (row.es_anticipado
-                          ? <span className="estado-tag anticipado" style={{ fontSize: '0.65rem' }}>ANT</span>
-                          : '—'
-                        )}
-                      </td>
-                      <td>{row.fecha_despacho || '—'}</td>
-                      <td style={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.nombre_cliente || '—'}</td>
-                      <td style={{ fontFamily: 'monospace', fontSize: '0.78rem' }}>{row.codigo_cliente || '—'}</td>
-                      <td style={{ fontWeight: 700 }}>{row.op}</td>
-                      <td style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.referencia || '—'}</td>
-                      <td style={{ fontFamily: 'monospace' }}>{row.codigo_alimento || '—'}</td>
-                      <td style={{ fontWeight: 600 }}>{row.bultos}</td>
-                      <td>{(row.kg || 0).toLocaleString()}</td>
-                      <td>{row.num_pedido || '—'}</td>
-                      <td>{row.num_entrega || '—'}</td>
-                      <td style={{ fontFamily: 'monospace' }}>{row.orden_sap || '—'}</td>
-                      <td style={{ fontWeight: 700 }}>{row.num_factura}</td>
-                      <td>{row.fecha_facturacion || '—'}</td>
-                      <td>{renderEstadoFactura(row.estado_factura)}</td>
-                      {canEdit && (
-                        <td>
-                          <div style={{ display: 'flex', gap: 4 }}>
-                            {showAnular && (
-                              <button
-                                className="btn-anular"
-                                onClick={() => setConfirmAnular({ facturaId: row.factura_id, numFactura: row.num_factura })}
-                              >
-                                <XCircle size={12} /> Anular
-                              </button>
-                            )}
-                            {isAdmin && !facturaIdsShown.has('btn_del_' + row.factura_id) && (
-                              // Add marker so we only show one delete button per matching factura row
-                              (() => { facturaIdsShown.add('btn_del_' + row.factura_id); return null; })(),
-                              <button
-                                className="btn btn-danger btn-sm btn-icon"
-                                onClick={() => handleEliminar(row.factura_id, row.num_factura)}
-                                disabled={eliminando === row.factura_id}
-                                title="Eliminar Factura Permanentemente"
-                              >
-                                <Trash2 size={12} />
-                              </button>
-                            )}
-                          </div>
+                    return (
+                      <tr key={virtualRow.key} data-index={idx} style={row.estado_factura === 'ANULADA' ? { opacity: 0.5, textDecoration: 'line-through', height: ROW_HEIGHT } : { height: ROW_HEIGHT }}>
+                        <td style={{ textAlign: 'center' }}>
+                          {flags.showMatrizada && row.estado_factura !== 'ANULADA' && canToggleMatrizado ? (
+                             <label className="switch-sm" title={disableToggle ? "Solo el Administrador puede desmarcar" : "Marcar como procesado por PICIZ"} style={{ opacity: disableToggle ? 0.6 : 1 }}>
+                               <input type="checkbox" checked={!!row.matrizada} disabled={disableToggle} onChange={() => handleToggleMatrizada(row.factura_id, !!row.matrizada)} />
+                               <span className="slider round"></span>
+                             </label>
+                          ) : row.matrizada ? (
+                            <span style={{ fontSize: '0.8rem', color: 'var(--color-success)', fontWeight: 600 }}>Sí</span>
+                          ) : null}
                         </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        <td>
+                          {row.num_remision || (row.es_anticipado
+                            ? <span className="estado-tag anticipado" style={{ fontSize: '0.65rem' }}>ANT</span>
+                            : '—'
+                          )}
+                        </td>
+                        <td>{row.fecha_despacho || '—'}</td>
+                        <td style={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.nombre_cliente || '—'}</td>
+                        <td style={{ fontFamily: 'monospace', fontSize: '0.78rem' }}>{row.codigo_cliente || '—'}</td>
+                        <td style={{ fontWeight: 700 }}>{row.op}</td>
+                        <td style={{ maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.referencia || '—'}</td>
+                        <td style={{ fontFamily: 'monospace' }}>{row.codigo_alimento || '—'}</td>
+                        <td style={{ fontWeight: 600 }}>{row.bultos}</td>
+                        <td>{(row.kg || 0).toLocaleString()}</td>
+                        <td>{row.num_pedido || '—'}</td>
+                        <td>{row.num_entrega || '—'}</td>
+                        <td style={{ fontFamily: 'monospace' }}>{row.orden_sap || '—'}</td>
+                        <td style={{ fontWeight: 700 }}>{row.num_factura}</td>
+                        <td>{row.fecha_facturacion || '—'}</td>
+                        <td>{renderEstadoFactura(row.estado_factura)}</td>
+                        {canEdit && (
+                          <td>
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              {flags.showAnular && (
+                                <button
+                                  className="btn-anular"
+                                  onClick={() => setConfirmAnular({ facturaId: row.factura_id, numFactura: row.num_factura })}
+                                >
+                                  <XCircle size={12} /> Anular
+                                </button>
+                              )}
+                              {isAdmin && flags.showDelete && (
+                                <button
+                                  className="btn btn-danger btn-sm btn-icon"
+                                  onClick={() => handleEliminar(row.factura_id, row.num_factura)}
+                                  disabled={eliminando === row.factura_id}
+                                  title="Eliminar Factura Permanentemente"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                  {/* Bottom spacer for virtualization */}
+                  {virtualizer.getVirtualItems().length > 0 && (
+                    <tr><td colSpan={canEdit ? 17 : 16} style={{ height: virtualizer.getTotalSize() - virtualizer.getVirtualItems()[virtualizer.getVirtualItems().length - 1].end, padding: 0, border: 'none' }} /></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
           <div className="pagination" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px' }}>
             <span>
               Mostrando {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} de {filtered.length} registros (Total: {data.length})

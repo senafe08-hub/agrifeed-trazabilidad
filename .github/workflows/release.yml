@@ -1,0 +1,194 @@
+# ============================================================
+# Agrifeed Trazabilidad — CI/CD Release Automatizado
+# ============================================================
+#
+# CUÁNDO SE DISPARA:
+#   Al crear un tag con formato "v*" (ej: v0.3.0, v1.0.0)
+#
+# QUÉ HACE:
+#   1. Compila el frontend (React + TypeScript)
+#   2. Compila el backend nativo (Rust/Tauri)
+#   3. Firma el instalador .exe con tu llave privada
+#   4. Genera el latest.json para el auto-updater
+#   5. Publica todo como GitHub Release
+#
+# CONFIGURACIÓN REQUERIDA (una sola vez):
+#   Ve a GitHub → Settings → Secrets and variables → Actions
+#   Crea estos 2 secretos:
+#     TAURI_SIGNING_PRIVATE_KEY  → contenido de src-tauri/keys/agrifeed.key
+#     TAURI_SIGNING_PRIVATE_KEY_PASSWORD → (déjalo vacío si no tiene)
+#
+# USO:
+#   git add . && git commit -m "v0.3.0 - mejoras"
+#   git tag v0.3.0
+#   git push origin main --tags
+#   → GitHub hace el resto automáticamente ✨
+# ============================================================
+
+name: 🚀 Release Agrifeed
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+# Solo un release a la vez
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write  # Necesario para crear el GitHub Release
+
+jobs:
+  release:
+    name: 🏗️ Build & Release (Windows)
+    runs-on: windows-latest
+
+    steps:
+      # ── 1. Checkout del código ──
+      - name: 📥 Checkout código
+        uses: actions/checkout@v4
+
+      # ── 2. Extraer versión del tag ──
+      - name: 🏷️ Extraer versión del tag
+        id: version
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          echo "version=$TAG" >> $GITHUB_OUTPUT
+          echo "📦 Versión detectada: $TAG"
+
+      # ── 3. Sincronizar versión en tauri.conf.json ──
+      - name: 🔄 Sincronizar versión en tauri.conf.json
+        shell: pwsh
+        run: |
+          $confPath = "src-tauri/tauri.conf.json"
+          $conf = Get-Content $confPath -Raw | ConvertFrom-Json
+          $conf.version = "${{ steps.version.outputs.version }}"
+          $conf | ConvertTo-Json -Depth 10 | Set-Content $confPath -Encoding UTF8
+          Write-Host "✅ tauri.conf.json actualizado a versión ${{ steps.version.outputs.version }}"
+
+      # ── 4. Setup Node.js ──
+      - name: 📦 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      # ── 5. Instalar dependencias frontend ──
+      - name: 📦 Instalar dependencias
+        run: npm ci
+
+      # ── 6. Setup Rust ──
+      - name: 🦀 Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # ── 7. Cache de Cargo (acelera builds futuros) ──
+      - name: 📦 Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
+
+      # ── 8. Build Tauri (compila frontend + Rust + firma) ──
+      - name: 🏗️ Compilar Agrifeed (Tauri Build)
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npm run tauri build -- --ci
+
+      # ── 9. Localizar archivos generados ──
+      - name: 📂 Localizar instalador y firma
+        id: artifacts
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $bundleDir = "src-tauri/target/release/bundle/nsis"
+          
+          $exe = Get-ChildItem -Path $bundleDir -Filter "*setup.exe" | Select-Object -First 1
+          $sig = Get-ChildItem -Path $bundleDir -Filter "*setup.exe.sig" | Select-Object -First 1
+          
+          if (-not $exe -or -not $sig) {
+            Write-Host "❌ ERROR: No se encontraron los archivos del instalador"
+            Get-ChildItem -Path $bundleDir -Recurse | Format-Table Name, Length
+            exit 1
+          }
+          
+          # Renombrar para consistencia
+          $newExeName = "Agrifeed_v${version}.exe"
+          $newSigName = "Agrifeed_v${version}.exe.sig"
+          $newExePath = Join-Path $bundleDir $newExeName
+          $newSigPath = Join-Path $bundleDir $newSigName
+          
+          Copy-Item $exe.FullName $newExePath -Force
+          Copy-Item $sig.FullName $newSigPath -Force
+          
+          echo "exe_path=$newExePath" >> $env:GITHUB_OUTPUT
+          echo "sig_path=$newSigPath" >> $env:GITHUB_OUTPUT
+          echo "exe_name=$newExeName" >> $env:GITHUB_OUTPUT
+          
+          Write-Host "✅ Instalador: $newExeName ($([math]::Round($exe.Length / 1MB, 1)) MB)"
+          Write-Host "✅ Firma: $newSigName"
+
+      # ── 10. Generar latest.json para auto-updater ──
+      - name: 📝 Generar latest.json
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $exeName = "${{ steps.artifacts.outputs.exe_name }}"
+          $sigPath = "${{ steps.artifacts.outputs.sig_path }}"
+          $sigContent = (Get-Content $sigPath -Raw).Trim()
+          $url = "https://github.com/${{ github.repository }}/releases/download/v${version}/${exeName}"
+          
+          $json = @{
+            version = $version
+            notes = "Actualización a la versión ${version}"
+            pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+            platforms = @{
+              "windows-x86_64" = @{
+                signature = $sigContent
+                url = $url
+              }
+            }
+          }
+          
+          $jsonString = $json | ConvertTo-Json -Depth 5
+          $jsonPath = "src-tauri/target/release/bundle/nsis/latest.json"
+          
+          $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+          [System.IO.File]::WriteAllText($jsonPath, $jsonString, $utf8NoBom)
+          
+          echo "json_path=$jsonPath" >> $env:GITHUB_OUTPUT
+          Write-Host "✅ latest.json generado"
+          Write-Host $jsonString
+
+      # ── 11. Crear GitHub Release con los 3 archivos ──
+      - name: 🚀 Publicar Release en GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Agrifeed Trazabilidad v${{ steps.version.outputs.version }}"
+          body: |
+            ## 🚀 Agrifeed Trazabilidad v${{ steps.version.outputs.version }}
+            
+            ### 📥 Instalación
+            Descarga `Agrifeed_v${{ steps.version.outputs.version }}.exe` y ejecútalo.
+            
+            ### 🔄 Actualización Automática
+            Si ya tienes la app instalada, recibirás la actualización automáticamente.
+            
+            ---
+            *Release generado automáticamente por CI/CD*
+          files: |
+            ${{ steps.artifacts.outputs.exe_path }}
+            ${{ steps.artifacts.outputs.sig_path }}
+            src-tauri/target/release/bundle/nsis/latest.json
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
