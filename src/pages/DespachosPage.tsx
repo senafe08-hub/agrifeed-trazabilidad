@@ -162,7 +162,7 @@ export default function DespachosPage() {
     if (!canEdit) return;
     if (!headerData.cliente_id) return toast.error('Debes seleccionar un cliente.');
     if (details.length === 0) return toast.error('Debes agregar al menos una OP.');
-    if (headerData.estado !== 'borrador' && !headerData.remision) return toast.error('El número de remisión es obligatorio para despachos definitivos.');
+    if (headerData.estado === 'despachado' && !headerData.remision) return toast.error('El número de remisión es obligatorio para despachos definitivos.');
     setSaving(true);
     try {
       if (editingId) {

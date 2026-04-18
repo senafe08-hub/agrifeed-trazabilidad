@@ -7,13 +7,14 @@ import * as XLSX from 'xlsx-js-style';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import supabase, {
-  fetchFormulas, fetchFormulaConDetalle, createFormula, updateFormula,
+  fetchFormulas, fetchFormulaConDetalle, createFormula, updateFormula, deleteFormula,
   toggleFormulaEstado, assignFormulaToOP, fetchOPsConFormula,
   fetchInventarioMateriales, fetchOPsParaExplosion, liquidarExplosionInventario, calcularInventarioConsolidado,
   reversarLiquidacionExplosion,
   type FormulaHeader, type FormulaDetalle,
 } from '../lib/supabase';
 import { toast } from '../components/Toast';
+import { usePermissions } from '../lib/permissions';
 
 /* ── Reusable material search select ── */
 const MaterialSearchSelect = ({ value, onChange, materiales, style }: any) => {
@@ -90,6 +91,8 @@ export default function FormulacionPanel({ canEdit, tab }: FormulacionPanelProps
 /*  TAB 1: CATÁLOGO DE FÓRMULAS (grouped by category)           */
 /* ══════════════════════════════════════════════════════════════ */
 function CatalogoTab({ canEdit, materiales, alimentos, clientes, categorias }: { canEdit: boolean; materiales: any[]; alimentos: any[]; clientes: any[]; categorias: string[] }) {
+  const { userRole } = usePermissions('formulacion');
+  const isAdmin = userRole === 'Administrador';
   const [formulas, setFormulas] = useState<FormulaHeader[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -176,6 +179,12 @@ function CatalogoTab({ canEdit, materiales, alimentos, clientes, categorias }: {
   };
 
   const handleToggle = async (f: FormulaHeader) => { try { await toggleFormulaEstado(f.id!, f.estado === 'activa' ? 'inactiva' : 'activa'); toast.success('Estado actualizado'); load(); } catch (e: any) { toast.error(e.message); } };
+  
+  const handleDelete = async (f: FormulaHeader) => {
+    if (!window.confirm(`¿Estás seguro de eliminar permanentemente la fórmula "${f.nombre}"?`)) return;
+    try { await deleteFormula(f.id!); toast.success('Fórmula eliminada correctamente'); load(); } catch (e: any) { toast.error(e.message); }
+  };
+
   const addIngrediente = () => setFormDetalles(p => [...p, { material_id: '', cantidad_base: '', referencia: 'MACROS', observaciones: '' }]);
   const removeIngrediente = (idx: number) => setFormDetalles(p => p.filter((_, i) => i !== idx));
   const updateIngrediente = (idx: number, field: string, val: any) => setFormDetalles(p => p.map((d, i) => i === idx ? { ...d, [field]: val } : d));
@@ -206,6 +215,11 @@ function CatalogoTab({ canEdit, materiales, alimentos, clientes, categorias }: {
               <button className="btn btn-outline btn-sm btn-icon" title="Editar" onClick={() => handleEdit(f)}><Edit2 size={14} /></button>
               <button className="btn btn-outline btn-sm btn-icon" title="Duplicar" onClick={() => handleDuplicate(f)} style={{ color: '#1565C0', borderColor: '#1565C0' }}><Copy size={14} /></button>
               <button className={`btn btn-sm btn-icon ${f.estado === 'activa' ? 'btn-outline' : 'btn-primary'}`} title={f.estado === 'activa' ? 'Inactivar' : 'Activar'} onClick={() => handleToggle(f)} style={f.estado === 'activa' ? { borderColor: '#E65100', color: '#E65100' } : {}}>{f.estado === 'activa' ? <X size={14} /> : <Check size={14} />}</button>
+              {isAdmin && (
+                <button className="btn btn-outline btn-sm btn-icon" title="Eliminar definitivamente" onClick={() => handleDelete(f)} style={{ color: '#F44336', borderColor: '#F44336' }}>
+                  <Trash2 size={14} />
+                </button>
+              )}
             </div>
           </td>}
         </tr>

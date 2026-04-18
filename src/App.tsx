@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { WifiOff } from 'lucide-react';
 import AppLayout from './components/layout/AppLayout';
 import UpdateChecker from './components/UpdateChecker';
 import LoginPage from './pages/LoginPage';
@@ -13,17 +14,18 @@ import TrazabilidadPage from './pages/TrazabilidadPage';
 import AdminPage from './pages/AdminPage';
 import supabase from './lib/supabase';
 
-const HARDCODED_USERS: Record<string, { role: string, password?: string }> = {
-  'produccion@agrifeed.com': { role: 'Auxiliar de Producción', password: 'agrifeed_produccion' },
-  'costos@agrifeed.com': { role: 'Analista de Costos', password: 'agrifeed_costos' },
-  'supervisor@agrifeed.com': { role: 'Supervisor Producción', password: 'agrifeed_supervisor' },
-  'logistica@agrifeed.com': { role: 'Auxiliar Logística', password: 'agrifeed_logistica' },
-  'admin_aux@agrifeed.com': { role: 'Auxiliar Administrativa', password: 'agrifeed_admin_aux' },
-  'coordinador@agrifeed.com': { role: 'Coordinador Administrativo', password: 'agrifeed_coord' },
-  'piciz@agrifeed.com': { role: 'Coordinador PICIZ', password: 'agrifeed_piciz' },
-  'gerencia@agrifeed.com': { role: 'Gerencia', password: 'agrifeed_gerencia' },
-  'cartera@agrifeed.com': { role: 'Analista de Cartera', password: 'agrifeed_cartera' },
-  'admin@agrifeed.com': { role: 'Administrador', password: 'Agrifeed.08' },
+// Mapeo de pseudo-correos a roles (temporal, lo ideal es guardarlo en una tabla 'roles_usuario' en Supabase)
+const ROLE_MAPPING: Record<string, string> = {
+  'produccion@agrifeed.local': 'Auxiliar de Producción',
+  'costos@agrifeed.local': 'Analista de Costos',
+  'supervisor@agrifeed.local': 'Supervisor Producción',
+  'logistica@agrifeed.local': 'Auxiliar Logística',
+  'admin_aux@agrifeed.local': 'Auxiliar Administrativa',
+  'coordinador@agrifeed.local': 'Coordinador Administrativo',
+  'piciz@agrifeed.local': 'Coordinador PICIZ',
+  'gerencia@agrifeed.local': 'Gerencia',
+  'cartera@agrifeed.local': 'Analista de Cartera',
+  'admin@agrifeed.local': 'Administrador',
 };
 
 function App() {
@@ -32,105 +34,80 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
   // For demo mode: skip auth if Supabase isn't configured
   const isDemoMode = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'https://YOUR_PROJECT.supabase.co';
 
   useEffect(() => {
-    // 1. Revisa si hay un usuario local primero (HARDCODED)
-    const localUserEmail = localStorage.getItem('localUserEmail');
-    if (localUserEmail && HARDCODED_USERS[localUserEmail]) {
-      setUser({ email: localUserEmail });
-      setUserRole(HARDCODED_USERS[localUserEmail].role);
-      setLoading(false);
-      return;
-    }
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
 
-    if (isDemoMode) {
-      setLoading(false);
-      return;
-    }
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
 
-    // 2. Si no hay localUser, verifica la sesión de Supabase (para administradores)
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    // Verificar la sesión de Supabase
     supabase.auth.getSession().then(({ data: { session } }) => {
       const sbUser = session?.user ?? null;
       setUser(sbUser);
-      if (sbUser?.email && !localStorage.getItem('localUserEmail')) {
-         setUserRole(HARDCODED_USERS[sbUser.email.toLowerCase()]?.role || 'Administrador');
+      if (sbUser?.email) {
+         setUserRole(ROLE_MAPPING[sbUser.email.toLowerCase()] || 'Administrador');
       }
       setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!localStorage.getItem('localUserEmail')) {
-        const sbUser = session?.user ?? null;
-        setUser(sbUser);
-        if (sbUser?.email) {
-           setUserRole(HARDCODED_USERS[sbUser.email.toLowerCase()]?.role || 'Administrador');
-        }
+      const sbUser = session?.user ?? null;
+      setUser(sbUser);
+      if (sbUser?.email) {
+         setUserRole(ROLE_MAPPING[sbUser.email.toLowerCase()] || 'Administrador');
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [isDemoMode]);
+  }, []);
 
-  const handleLogin = async (email: string, password: string) => {
+  const handleLogin = async (username: string, password: string) => {
     setLoginError(null);
     setLoginLoading(true);
 
-    const emailKey = email.toLowerCase();
-    
-    // 1. Verificamos si es uno de los usuarios del sistema sin supabase
-    if (HARDCODED_USERS[emailKey]) {
-      if (HARDCODED_USERS[emailKey].password === password) {
-        localStorage.setItem('localUserEmail', emailKey);
-        setUser({ email: emailKey });
-        setUserRole(HARDCODED_USERS[emailKey].role);
-        setLoginLoading(false);
-        return;
-      } else {
-        setLoginError('Contraseña incorrecta para el usuario del sistema.');
-        setLoginLoading(false);
-        return;
-      }
-    }
-
-    // 2. Si no esta en HARDCODED_USERS, intenta loguear con Supabase (admin o usuarios reales)
     if (isDemoMode) {
-      setLoginError('El usuario ingresado no existe en el sistema local y Supabase no está configurado.');
+      setLoginError('El sistema requiere conexión a Supabase.');
       setLoginLoading(false);
       return;
     }
 
+    if (!navigator.onLine) {
+      setLoginError('No hay conexión a internet. Revisa tu red e intenta nuevamente.');
+      setLoginLoading(false);
+      return;
+    }
+
+    // Convertir el nombre de usuario a pseudo-correo para Supabase
+    const emailKey = username.includes('@') ? username.toLowerCase() : `${username.toLowerCase()}@agrifeed.local`;
+
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({ email: emailKey, password });
       if (error) {
         setLoginError(error.message === 'Invalid login credentials'
-          ? 'Credenciales incorrectas. Verifica tu email y contraseña.'
+          ? 'Credenciales incorrectas. Verifica tu usuario y contraseña.'
           : error.message);
-      } else if (data.session) {
-        localStorage.removeItem('localUserEmail');
       }
     } catch (err) {
-      setLoginError('Error de conexión. Intentalo de nuevo.');
+      setLoginError('Error de red. Asegúrate de tener conexión a internet.');
     } finally {
       setLoginLoading(false);
     }
   };
 
   const handleLogout = async () => {
-    const localUser = localStorage.getItem('localUserEmail');
-    if (localUser) {
-      localStorage.removeItem('localUserEmail');
-      setUser(null);
-      return;
-    }
-    
-    if (isDemoMode) {
-      setUser(null);
-      return;
-    }
-
     await supabase.auth.signOut();
     setUser(null);
   };
@@ -166,12 +143,41 @@ function App() {
     );
   }
 
+  const offlineBanner = isOffline && (
+    <div style={{
+      backgroundColor: '#F44336',
+      color: 'white',
+      padding: '8px 16px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 99999,
+      fontWeight: 600,
+      fontSize: '0.9rem',
+      boxShadow: '0 2px 10px rgba(0,0,0,0.2)'
+    }}>
+      <WifiOff size={18} />
+      Estás navegando sin conexión a internet. El inicio de sesión y sincronización están desactivados.
+    </div>
+  );
+
   if (!user) {
-    return <LoginPage onLogin={handleLogin} error={loginError} loading={loginLoading} />;
+    return (
+      <>
+        {offlineBanner}
+        <LoginPage onLogin={handleLogin} error={loginError} loading={loginLoading} />
+      </>
+    );
   }
 
   return (
     <BrowserRouter>
+      {offlineBanner}
       <UpdateChecker />
       <Routes>
         <Route element={<AppLayout userEmail={user.email || ''} userRole={userRole} onLogout={handleLogout} />}>

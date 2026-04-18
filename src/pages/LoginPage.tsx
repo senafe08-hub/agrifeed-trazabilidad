@@ -43,11 +43,11 @@ export default function LoginPage({ onLogin, error, loading }: LoginPageProps) {
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label">Correo electrónico</label>
+            <label className="form-label">Usuario del sistema</label>
             <input
-              type="email"
+              type="text"
               className="form-input"
-              placeholder="usuario@agrifeed.com"
+              placeholder="ej. produccion"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required

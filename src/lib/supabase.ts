@@ -140,7 +140,7 @@ export async function fetchDespachos() {
         granja_id: row.granja_id,
         granja: row.maestro_granjas,
         observaciones: row.observaciones,
-        estado: row.num_remision ? 'Despachado' : 'borrador',
+        estado: row.estado || (row.num_remision ? 'despachado' : 'borrador'),
         detalle: []
       });
     }
@@ -191,7 +191,8 @@ export async function createDespacho(encabezado: any, detalles: any[]) {
     vehiculo_id: encabezado.vehiculo_id ? parseInt(encabezado.vehiculo_id) : null,
     cliente_id: encabezado.cliente_id ? parseInt(encabezado.cliente_id) : null,
     entregado_por: encabezado.entregado_por || null,
-    observaciones: encabezado.observaciones || null
+    observaciones: encabezado.observaciones || null,
+    estado: encabezado.estado || 'borrador'
   }));
   const { error: insertError } = await supabase.from('despachos').insert(rows);
   if (insertError) throw insertError;
@@ -261,6 +262,7 @@ export async function fetchRemisionesPendientes(excludePedidoId?: number) {
     .from('despachos')
     .select('num_remision, lote, bultos_despachados, fecha, cliente_id, maestro_clientes(nombre, codigo_sap)')
     .not('num_remision', 'is', null)
+    .eq('estado', 'despachado')
     .order('num_remision', { ascending: false });
   if (dErr) throw dErr;
 
@@ -1276,6 +1278,14 @@ export async function toggleFormulaEstado(formulaId: number, nuevoEstado: 'activ
   const { error } = await supabase.from('formulas').update({ estado: nuevoEstado }).eq('id', formulaId);
   if (error) throw error;
   await registrarAuditoria('UPDATE', 'Formulación', `Fórmula ID ${formulaId} -> ${nuevoEstado}`);
+}
+
+export async function deleteFormula(formulaId: number) {
+  const { error: e1 } = await supabase.from('formula_detalle').delete().eq('formula_id', formulaId);
+  if (e1) throw e1;
+  const { error: e2 } = await supabase.from('formulas').delete().eq('id', formulaId);
+  if (e2) throw e2;
+  await registrarAuditoria('DELETE', 'Formulación', `Fórmula ID ${formulaId} eliminada`);
 }
 
 export async function assignFormulaToOP(opId: number, formulaId: number | null) {

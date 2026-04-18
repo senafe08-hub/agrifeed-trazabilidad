@@ -1,42 +1,24 @@
 import { useState, useEffect } from 'react';
-import { UserPlus, Shield, Search, Edit2, Trash2, Key, Users, Activity, Eye, EyeOff } from 'lucide-react';
+import { UserPlus, Shield, Search, Edit2, Trash2, Key, Users, Activity } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { usePermissions } from '../lib/permissions';
 import supabase from '../lib/supabase';
 
 const demoUsers = [
-  { id: 1, email: 'admin@agrifeed.com', nombre: 'Sebastian Navarro', rol: 'Administrador', activo: true, ultimo_acceso: 'Sesión Activa', password: 'Por Supabase Auth' },
-  { id: 2, email: 'produccion@agrifeed.com', nombre: 'Auxiliar de Producción', rol: 'Auxiliar de Producción', activo: true, ultimo_acceso: 'Sesión Local', password: 'agrifeed_produccion' },
-  { id: 3, email: 'costos@agrifeed.com', nombre: 'Analista de Costos', rol: 'Analista de Costos', activo: true, ultimo_acceso: 'Sesión Local', password: 'agrifeed_costos' },
-  { id: 4, email: 'supervisor@agrifeed.com', nombre: 'Supervisor Producción', rol: 'Supervisor Producción', activo: true, ultimo_acceso: 'Sesión Local', password: 'agrifeed_supervisor' },
-  { id: 5, email: 'logistica@agrifeed.com', nombre: 'Auxiliar Logística', rol: 'Auxiliar Logística', activo: true, ultimo_acceso: 'Sesión Local', password: 'agrifeed_logistica' },
-  { id: 6, email: 'admin_aux@agrifeed.com', nombre: 'Auxiliar Administrativa', rol: 'Auxiliar Administrativa', activo: true, ultimo_acceso: 'Sesión Local', password: 'agrifeed_admin_aux' },
-  { id: 7, email: 'coordinador@agrifeed.com', nombre: 'Coordinador Administrativo', rol: 'Coordinador Administrativo', activo: true, ultimo_acceso: 'Sesión Local', password: 'agrifeed_coord' },
-  { id: 8, email: 'gerencia@agrifeed.com', nombre: 'Director General (Gerencia)', rol: 'Gerencia', activo: true, ultimo_acceso: 'Sesión Local', password: 'agrifeed_gerencia' },
-  { id: 9, email: 'cartera@agrifeed.com', nombre: 'Analista de Cartera', rol: 'Analista de Cartera', activo: true, ultimo_acceso: 'Sesión Local', password: 'agrifeed_cartera' },
-  { id: 10, email: 'piciz@agrifeed.com', nombre: 'Coordinador PICIZ', rol: 'Coordinador PICIZ', activo: true, ultimo_acceso: 'Sesión Local', password: 'agrifeed_piciz' },
+  { id: 1, email: 'admin', nombre: 'Sebastian Navarro', rol: 'Administrador', activo: true, ultimo_acceso: 'Sesión Activa' },
+  { id: 2, email: 'produccion', nombre: 'Auxiliar de Producción', rol: 'Auxiliar de Producción', activo: true, ultimo_acceso: 'Sesión Local' },
+  { id: 3, email: 'costos', nombre: 'Analista de Costos', rol: 'Analista de Costos', activo: true, ultimo_acceso: 'Sesión Local' },
+  { id: 4, email: 'supervisor', nombre: 'Supervisor Producción', rol: 'Supervisor Producción', activo: true, ultimo_acceso: 'Sesión Local' },
+  { id: 5, email: 'logistica', nombre: 'Auxiliar Logística', rol: 'Auxiliar Logística', activo: true, ultimo_acceso: 'Sesión Local' },
+  { id: 6, email: 'admin_aux', nombre: 'Auxiliar Administrativa', rol: 'Auxiliar Administrativa', activo: true, ultimo_acceso: 'Sesión Local' },
+  { id: 7, email: 'coordinador', nombre: 'Coordinador Administrativo', rol: 'Coordinador Administrativo', activo: true, ultimo_acceso: 'Sesión Local' },
+  { id: 8, email: 'gerencia', nombre: 'Director General (Gerencia)', rol: 'Gerencia', activo: true, ultimo_acceso: 'Sesión Local' },
+  { id: 9, email: 'cartera', nombre: 'Analista de Cartera', rol: 'Analista de Cartera', activo: true, ultimo_acceso: 'Sesión Local' },
+  { id: 10, email: 'piciz', nombre: 'Coordinador PICIZ', rol: 'Coordinador PICIZ', activo: true, ultimo_acceso: 'Sesión Local' },
 ];
 
-const PasswordDisplay = ({ pwd }: { pwd?: string }) => {
-  const [show, setShow] = useState(false);
-  if (!pwd) return <span style={{ color: 'var(--text-muted)' }}>N/A</span>;
-  if (pwd === 'Por Supabase Auth') return <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>Privada (Supabase)</span>;
-  
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-      <span style={{ fontFamily: 'monospace', letterSpacing: show ? 'normal' : '2px', fontSize: 13 }}>
-        {show ? pwd : '••••••••'}
-      </span>
-      <button 
-        type="button" 
-        onClick={() => setShow(!show)}
-        style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 2, color: 'var(--text-muted)' }}
-        title={show ? 'Ocultar' : 'Mostrar'}
-      >
-        {show ? <EyeOff size={14} /> : <Eye size={14} />}
-      </button>
-    </div>
-  );
+const PasswordDisplay = () => {
+  return <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>Privada (Supabase Auth)</span>;
 };
 
 const roles = [
@@ -131,14 +113,31 @@ export default function AdminPage() {
     setShowPasswordReset(true);
   };
 
-  const handleSavePassword = (e: React.FormEvent) => {
+  const handleSavePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (passwordFormData.newPassword !== passwordFormData.confirmPassword) {
       alert("Las contraseñas no coinciden");
       return;
     }
-    alert("¡Contraseña actualizada exitosamente! (Simulado localmente)");
-    setShowPasswordReset(false);
+    
+    // Obtenemos el usuario objetivo
+    const targetUser = users.find(u => u.id === passwordFormData.userId);
+    if (!targetUser) return;
+    
+    // Nos aseguramos del email real (agregando @agrifeed.local si es necesario)
+    const targetEmail = targetUser.email.includes('@') ? targetUser.email : `${targetUser.email}@agrifeed.local`;
+    
+    const { error } = await supabase.rpc('admin_reset_password', { 
+      target_email: targetEmail, 
+      new_password: passwordFormData.newPassword 
+    });
+
+    if (error) {
+      alert("Error al cambiar la contraseña: " + error.message);
+    } else {
+      alert("¡Contraseña actualizada exitosamente en Supabase Auth!");
+      setShowPasswordReset(false);
+    }
   };
 
   return (
@@ -189,7 +188,7 @@ export default function AdminPage() {
                     <tr key={user.id} style={{ opacity: user.activo ? 1 : 0.6 }}>
                       <td style={{ fontWeight: 600 }}>{user.nombre}</td>
                       <td>{user.email}</td>
-                      <td><PasswordDisplay pwd={user.password} /></td>
+                      <td><PasswordDisplay /></td>
                       <td><span className="badge badge-info">{user.rol}</span></td>
                       <td>
                         <span className={`badge ${user.activo ? 'badge-success' : 'badge-neutral'}`}>
@@ -219,42 +218,46 @@ export default function AdminPage() {
       {/* MODAL USER FORM */}
       {showUserForm && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: 450 }}>
-            <h2 className="modal-title">{formMode === 'crear' ? 'Crear Nuevo Usuario' : 'Editar Usuario'}</h2>
-            <form onSubmit={handleSaveUser}>
-              <div className="grid-1" style={{ gap: '15px' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Nombre Completo <span style={{ color: 'red' }}>*</span></label>
-                  <input type="text" className="form-input" required value={userFormData.nombre || ''} onChange={e => setUserFormData({...userFormData, nombre: e.target.value})} />
+          <div className="modal" style={{ maxWidth: 450 }}>
+            <div className="modal-header">
+              <h2 className="modal-title">{formMode === 'crear' ? 'Crear Nuevo Usuario' : 'Editar Usuario'}</h2>
+            </div>
+            <div className="modal-body">
+              <form onSubmit={handleSaveUser}>
+                <div className="grid-1" style={{ gap: '15px' }}>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Nombre Completo <span style={{ color: 'red' }}>*</span></label>
+                    <input type="text" className="form-input" required value={userFormData.nombre || ''} onChange={e => setUserFormData({...userFormData, nombre: e.target.value})} />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Correo Electrónico <span style={{ color: 'red' }}>*</span></label>
+                    <input type="email" className="form-input" required value={userFormData.email || ''} onChange={e => setUserFormData({...userFormData, email: e.target.value})} />
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label className="form-label">Rol del Sistema <span style={{ color: 'red' }}>*</span></label>
+                    <select className="form-input" required value={userFormData.rol || ''} onChange={e => setUserFormData({...userFormData, rol: e.target.value})}>
+                      {roles.map(r => <option key={r.nombre} value={r.nombre}>{r.nombre}</option>)}
+                    </select>
+                  </div>
+                  {formMode === 'crear' && (
+                    <>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Contraseña de Acceso <span style={{ color: 'red' }}>*</span></label>
+                        <input type="password" className="form-input" required minLength={6} value={userFormData.password || ''} onChange={e => setUserFormData({...userFormData, password: e.target.value})} />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label">Confirmar Contraseña <span style={{ color: 'red' }}>*</span></label>
+                        <input type="password" className="form-input" required minLength={6} value={userFormData.confirmPassword || ''} onChange={e => setUserFormData({...userFormData, confirmPassword: e.target.value})} />
+                      </div>
+                    </>
+                  )}
                 </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Correo Electrónico <span style={{ color: 'red' }}>*</span></label>
-                  <input type="email" className="form-input" required value={userFormData.email || ''} onChange={e => setUserFormData({...userFormData, email: e.target.value})} />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
+                  <button type="button" className="btn btn-outline" onClick={() => setShowUserForm(false)}>Cancelar</button>
+                  <button type="submit" className="btn btn-primary">{formMode === 'crear' ? 'Crear Usuario' : 'Guardar Cambios'}</button>
                 </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Rol del Sistema <span style={{ color: 'red' }}>*</span></label>
-                  <select className="form-input" required value={userFormData.rol || ''} onChange={e => setUserFormData({...userFormData, rol: e.target.value})}>
-                    {roles.map(r => <option key={r.nombre} value={r.nombre}>{r.nombre}</option>)}
-                  </select>
-                </div>
-                {formMode === 'crear' && (
-                  <>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Contraseña de Acceso <span style={{ color: 'red' }}>*</span></label>
-                      <input type="password" className="form-input" required minLength={6} value={userFormData.password || ''} onChange={e => setUserFormData({...userFormData, password: e.target.value})} />
-                    </div>
-                    <div className="form-group" style={{ marginBottom: 0 }}>
-                      <label className="form-label">Confirmar Contraseña <span style={{ color: 'red' }}>*</span></label>
-                      <input type="password" className="form-input" required minLength={6} value={userFormData.confirmPassword || ''} onChange={e => setUserFormData({...userFormData, confirmPassword: e.target.value})} />
-                    </div>
-                  </>
-                )}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
-                <button type="button" className="btn btn-outline" onClick={() => setShowUserForm(false)}>Cancelar</button>
-                <button type="submit" className="btn btn-primary">{formMode === 'crear' ? 'Crear Usuario' : 'Guardar Cambios'}</button>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
         </div>
       )}
@@ -262,23 +265,27 @@ export default function AdminPage() {
       {/* MODAL PASSWORD RESET */}
       {showPasswordReset && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: 400 }}>
-            <h2 className="modal-title">Actualizar Contraseña</h2>
-            <p style={{ color: 'var(--text-muted)', marginBottom: 20 }}>Ingresa la nueva contraseña para el usuario seleccionado. Será una actualización inmediata diseñada por el administrador local.</p>
-            <form onSubmit={handleSavePassword}>
-              <div className="form-group">
-                <label className="form-label">Nueva Contraseña</label>
-                <input type="password" className="form-input" required minLength={6} value={passwordFormData.newPassword} onChange={e => setPasswordFormData({...passwordFormData, newPassword: e.target.value})} />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Confirmar Nueva Contraseña</label>
-                <input type="password" className="form-input" required minLength={6} value={passwordFormData.confirmPassword} onChange={e => setPasswordFormData({...passwordFormData, confirmPassword: e.target.value})} />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
-                <button type="button" className="btn btn-outline" onClick={() => setShowPasswordReset(false)}>Cancelar</button>
-                <button type="submit" className="btn btn-danger">Confirmar y Cambiar</button>
-              </div>
-            </form>
+          <div className="modal" style={{ maxWidth: 400 }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Actualizar Contraseña</h2>
+            </div>
+            <div className="modal-body">
+              <p style={{ color: 'var(--text-muted)', marginBottom: 20 }}>Ingresa la nueva contraseña para el usuario seleccionado. Será una actualización inmediata diseñada por el administrador local.</p>
+              <form onSubmit={handleSavePassword}>
+                <div className="form-group">
+                  <label className="form-label">Nueva Contraseña</label>
+                  <input type="password" className="form-input" required minLength={6} value={passwordFormData.newPassword} onChange={e => setPasswordFormData({...passwordFormData, newPassword: e.target.value})} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Confirmar Nueva Contraseña</label>
+                  <input type="password" className="form-input" required minLength={6} value={passwordFormData.confirmPassword} onChange={e => setPasswordFormData({...passwordFormData, confirmPassword: e.target.value})} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
+                  <button type="button" className="btn btn-outline" onClick={() => setShowPasswordReset(false)}>Cancelar</button>
+                  <button type="submit" className="btn btn-danger">Confirmar y Cambiar</button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}

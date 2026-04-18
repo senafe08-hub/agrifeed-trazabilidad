@@ -12,9 +12,11 @@ import {
   LogOut,
   ChevronRight,
   ChevronLeft,
-  Menu
+  Menu,
+  Key
 } from 'lucide-react';
 import { ROLE_PERMISSIONS } from '../../lib/permissions';
+import supabase from '../../lib/supabase';
 
 const navItems = [
 
@@ -53,9 +55,34 @@ export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps)
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
 
+  // Password modal state
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+
   const getInitials = (email: string) => {
     const name = email.split('@')[0];
     return name.substring(0, 2).toUpperCase();
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      alert('Las contraseñas no coinciden.');
+      return;
+    }
+    setPasswordLoading(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setPasswordLoading(false);
+    if (error) {
+      alert(`Error al actualizar contraseña: ${error.message}`);
+    } else {
+      alert('Contraseña actualizada exitosamente.');
+      setShowPasswordModal(false);
+      setNewPassword('');
+      setConfirmPassword('');
+    }
   };
 
   return (
@@ -131,14 +158,24 @@ export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps)
           <span className="sidebar-user-name">{userEmail.split('@')[0]}</span>
           <span className="sidebar-user-role">{userRole}</span>
         </div>
-        <button
-          onClick={onLogout}
-          className="btn-icon btn-icon-logout"
-          style={{ color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', cursor: 'pointer' }}
-          title="Cerrar sesión"
-        >
-          <LogOut size={18} />
-        </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <button
+            onClick={() => setShowPasswordModal(true)}
+            className="btn-icon"
+            style={{ color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
+            title="Cambiar contraseña"
+          >
+            <Key size={16} />
+          </button>
+          <button
+            onClick={onLogout}
+            className="btn-icon btn-icon-logout"
+            style={{ color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
+            title="Cerrar sesión"
+          >
+            <LogOut size={16} />
+          </button>
+        </div>
       </div>
       <div className="version-text" style={{
         padding: '8px 20px 12px',
@@ -149,8 +186,56 @@ export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps)
         fontWeight: 'bold',
         whiteSpace: 'nowrap'
       }}>
-        Agrifeed v0.2.7 🚀
+        Agrifeed v0.2.8 🚀
       </div>
+
+      {/* Password Change Modal */}
+      {showPasswordModal && (
+        <div className="modal-overlay" style={{ zIndex: 9999 }}>
+          <div className="modal" style={{ maxWidth: 400 }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Cambiar Mi Contraseña</h2>
+            </div>
+            <div className="modal-body">
+              <p style={{ color: 'var(--text-muted)', marginBottom: 20, fontSize: '0.9rem' }}>
+                Esta acción actualizará de inmediato tu contraseña personal de acceso.
+              </p>
+              <form onSubmit={handleChangePassword}>
+                <div className="form-group">
+                  <label className="form-label">Nueva Contraseña</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    required
+                    minLength={6}
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Confirmar Contraseña</label>
+                  <input
+                    type="password"
+                    className="form-input"
+                    required
+                    minLength={6}
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                  />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
+                  <button type="button" className="btn btn-outline" onClick={() => setShowPasswordModal(false)} disabled={passwordLoading}>
+                    Cancelar
+                  </button>
+                  <button type="submit" className="btn btn-primary" disabled={passwordLoading}>
+                    {passwordLoading ? 'Guardando...' : 'Cambiar Contraseña'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }
