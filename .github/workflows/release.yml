@@ -59,21 +59,34 @@ jobs:
           echo "version=$TAG" >> $GITHUB_OUTPUT
           echo "📦 Versión detectada: $TAG"
 
-      # ── 3. Sincronizar versión en tauri.conf.json ──
-      - name: 🔄 Sincronizar versión en tauri.conf.json
+      # ── 3. Sincronizar versión en tauri.conf.json y package.json ──
+      - name: 🔄 Sincronizar versión
         shell: pwsh
         run: |
+          $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+          $version = "${{ steps.version.outputs.version }}"
+          
+          # tauri.conf.json
           $confPath = "src-tauri/tauri.conf.json"
           $conf = Get-Content $confPath -Raw | ConvertFrom-Json
-          $conf.version = "${{ steps.version.outputs.version }}"
-          $conf | ConvertTo-Json -Depth 10 | Set-Content $confPath -Encoding UTF8
-          Write-Host "✅ tauri.conf.json actualizado a versión ${{ steps.version.outputs.version }}"
+          $conf.version = $version
+          $json = $conf | ConvertTo-Json -Depth 10
+          [System.IO.File]::WriteAllText($confPath, $json, $utf8NoBom)
+          
+          # package.json
+          $pkgPath = "package.json"
+          $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
+          $pkg.version = $version
+          $json = $pkg | ConvertTo-Json -Depth 10
+          [System.IO.File]::WriteAllText($pkgPath, $json, $utf8NoBom)
+          
+          Write-Host "✅ Versión sincronizada a $version en ambos archivos"
 
       # ── 4. Setup Node.js ──
       - name: 📦 Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
 
       # ── 5. Instalar dependencias frontend ──
