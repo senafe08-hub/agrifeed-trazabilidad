@@ -63,3 +63,4 @@ export * from './api/facturacion';
 export * from './api/inventario';
 export * from './api/formulacion';
 export * from './api/maestros';
+export * from './api/ventas';

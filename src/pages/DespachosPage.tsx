@@ -4,6 +4,7 @@ import { fetchDespachos, createDespacho, updateDespacho, softDeleteDespacho, sup
 import DespachoHeaderForm from '../components/DespachoHeaderForm';
 import DetalleOPList from '../components/DetalleOPList';
 import InventarioMPPanel from '../components/InventarioMPPanel';
+import InventarioPTPanel from '../components/InventarioPTPanel';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -17,7 +18,7 @@ const PAGE_SIZE = 100;
 
 export default function DespachosPage() {
   const { canView, canEdit } = usePermissions('despachos');
-  const [mainTab, setMainTab] = useState<'despachos' | 'inventario'>('despachos');
+  const [mainTab, setMainTab] = useState<'despachos' | 'inventario' | 'inventario_pt'>('despachos');
 
   // Data
   const [despachos, setDespachos] = useState<any[]>([]);
@@ -531,9 +532,13 @@ export default function DespachosPage() {
         <button className={`tab ${mainTab === 'inventario' ? 'active' : ''}`} onClick={() => setMainTab('inventario')} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Boxes size={16} /> Inventario MP
         </button>
+        <button className={`tab ${mainTab === 'inventario_pt' ? 'active' : ''}`} onClick={() => setMainTab('inventario_pt')} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Package size={16} /> Inventario PT
+        </button>
       </div>
 
       {mainTab === 'inventario' && <InventarioMPPanel canEdit={canEdit} />}
+      {mainTab === 'inventario_pt' && <InventarioPTPanel />}
 
       {mainTab === 'despachos' && <>
       {/* KPI Summary Strip */}

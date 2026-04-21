@@ -12,6 +12,7 @@ import DespachosPage from './pages/DespachosPage';
 import FacturacionPage from './pages/FacturacionPage';
 import TrazabilidadPage from './pages/TrazabilidadPage';
 import AdminPage from './pages/AdminPage';
+import VentasPage from './pages/VentasPage';
 import supabase from './lib/supabase';
 
 // Mapeo de pseudo-correos a roles (temporal, lo ideal es guardarlo en una tabla 'roles_usuario' en Supabase)
@@ -26,6 +27,7 @@ const ROLE_MAPPING: Record<string, string> = {
   'gerencia@agrifeed.local': 'Gerencia',
   'cartera@agrifeed.local': 'Analista de Cartera',
   'admin@agrifeed.local': 'Administrador',
+  'ventas@agrifeed.local': 'Representante Ventas',
 };
 
 function App() {
@@ -189,6 +191,7 @@ function App() {
           <Route path="/facturacion" element={<FacturacionPage />} />
           <Route path="/trazabilidad" element={<TrazabilidadPage />} />
           <Route path="/admin" element={<AdminPage />} />
+          <Route path="/ventas" element={<VentasPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

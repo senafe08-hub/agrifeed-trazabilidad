@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Plus, Search, Edit2, Trash2, Download, Upload, ChevronLeft, ClipboardList, Lock, Unlock, Trophy } from 'lucide-react';
 import supabase, { registrarAuditoria } from '../lib/supabase';
+import PropuestasOPPanel from '../components/PropuestasOPPanel';
 import * as XLSX from 'xlsx';
 import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import { jsPDF } from 'jspdf';
@@ -16,7 +17,7 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
   const { canView, canEdit } = usePermissions('produccion');
 
   // Tabs & Turno Report
-  const [activeTab, setActiveTab] = useState<'registros' | 'reporte' | 'estado_ops' | 'reporte_explosion'>('registros');
+  const [activeTab, setActiveTab] = useState<'registros' | 'reporte' | 'estado_ops' | 'reporte_explosion' | 'propuestas_op'>('registros');
   const [reportMode, setReportMode] = useState<'lista' | 'nuevo' | 'detalle' | 'editar_detalle'>('lista');
   const [historialReportes, setHistorialReportes] = useState<any[]>([]);
   const [reporteFecha, setReporteFecha] = useState(new Date().toISOString().split('T')[0]);
@@ -335,6 +336,15 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
         const { error } = await supabase.from('produccion').insert([formData]);
         if (error) throw error;
         await registrarAuditoria('CREATE', 'Producción', `Se registró entrega de ${formData.baches_entregados} baches (${formData.bultos_entregados} bultos) para el lote ${formData.lote}`);
+        
+        // COMPENSACIÓN AUTOMÁTICA DE PRÉSTAMOS
+        try {
+          const { compensarPrestamosPorOP } = await import('../lib/api/ventas');
+          await compensarPrestamosPorOP(formData.lote, Number(formData.bultos_entregados));
+        } catch (err) {
+          console.warn("No se pudo compensar el préstamo", err);
+        }
+
       } else {
         const { error } = await supabase.from('produccion').update(formData).eq('id', editingId);
         if (error) throw error;
@@ -998,21 +1008,33 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
           className={`btn ${activeTab === 'estado_ops' ? 'btn-primary' : 'btn-outline'}`} 
           onClick={() => setActiveTab('estado_ops')}
         >
-          Estado Órdenes (OP)
+          Estado de OPs
         </button>
         <button 
           className={`btn ${activeTab === 'reporte' ? 'btn-primary' : 'btn-outline'}`} 
-          onClick={() => { setActiveTab('reporte'); setReportMode('lista'); }}
+          onClick={() => setActiveTab('reporte')}
         >
-          Reporte del Turno / Cumplimiento
+          Reporte por Turno
         </button>
-        <button 
-          className={`btn ${activeTab === 'reporte_explosion' ? 'btn-primary' : 'btn-outline'}`} 
-          onClick={() => setActiveTab('reporte_explosion')}
-        >
-          Explosión de Entregas
-        </button>
+        {isAdmin && (
+          <button 
+            className={`btn ${activeTab === 'reporte_explosion' ? 'btn-primary' : 'btn-outline'}`} 
+            onClick={() => setActiveTab('reporte_explosion')}
+          >
+            Explosión de Materiales
+          </button>
+        )}
+        {canEdit && (
+          <button 
+            className={`btn ${activeTab === 'propuestas_op' ? 'btn-warning' : 'btn-outline'}`} 
+            onClick={() => setActiveTab('propuestas_op')}
+          >
+            Propuestas MRP
+          </button>
+        )}
       </div>
+
+      {activeTab === 'propuestas_op' && <PropuestasOPPanel />}
 
       {/* --- REGISTROS TAB --- */}
       <div style={{ display: activeTab === 'registros' ? 'block' : 'none', animation: 'fadeIn 0.3s ease' }}>

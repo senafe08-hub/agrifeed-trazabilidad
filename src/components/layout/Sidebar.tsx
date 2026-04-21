@@ -12,7 +12,8 @@ import {
   Settings,
   LogOut,
   ChevronRight,
-  Key
+  Key,
+  ShoppingCart
 } from 'lucide-react';
 import { ROLE_PERMISSIONS } from '../../lib/permissions';
 import supabase from '../../lib/supabase';
@@ -23,6 +24,7 @@ const navItems = [
     section: 'Operaciones',
     items: [
       { path: '/maestro', label: 'Maestro de Datos', icon: Database },
+      { path: '/ventas', label: 'Ventas', icon: ShoppingCart },
       { path: '/programacion', label: 'Programación', icon: Calendar },
       { path: '/produccion', label: 'Producción', icon: Factory },
       { path: '/despachos', label: 'Logística', icon: Truck },
@@ -198,17 +200,19 @@ export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps)
           <span className="sidebar-user-name">{userEmail.split('@')[0]}</span>
           <span className="sidebar-user-role">{userRole}</span>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ display: 'flex', flexDirection: isCollapsed ? 'column' : 'row', gap: 8 }}>
+          {!isCollapsed && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowPasswordModal(true); }}
+              className="btn-icon"
+              style={{ color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
+              title="Cambiar contraseña"
+            >
+              <Key size={16} />
+            </button>
+          )}
           <button
-            onClick={() => setShowPasswordModal(true)}
-            className="btn-icon"
-            style={{ color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
-            title="Cambiar contraseña"
-          >
-            <Key size={16} />
-          </button>
-          <button
-            onClick={onLogout}
+            onClick={(e) => { e.stopPropagation(); onLogout(); }}
             className="btn-icon btn-icon-logout"
             style={{ color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
             title="Cerrar sesión"

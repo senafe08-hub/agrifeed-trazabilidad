@@ -136,6 +136,7 @@ h4 { font-size: 1.125rem; }
   height: 100vh;
   width: 100vw;
   overflow: hidden;
+  position: relative;
 }
 
 /* ── Sidebar ── */
@@ -150,7 +151,11 @@ h4 { font-size: 1.125rem; }
   flex-direction: column;
   transition: width var(--transition-base), min-width var(--transition-base);
   z-index: 100;
-  position: relative;
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  will-change: width, min-width;
 }
 
 .sidebar-particles-container {
@@ -384,6 +389,7 @@ h4 { font-size: 1.125rem; }
 
 /* ── Main Content ── */
 .main-content {
+  margin-left: var(--sidebar-collapsed-width);
   flex: 1;
   display: flex;
   flex-direction: column;

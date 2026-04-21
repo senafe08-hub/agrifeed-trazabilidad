@@ -10,3 +10,4 @@ export * from './facturacion';
 export * from './inventario';
 export * from './formulacion';
 export * from './maestros';
+export * from './ventas';

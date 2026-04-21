@@ -288,6 +288,7 @@ export default function MaestroPage() {
         const tipoPago = item.tipo_pago || 'CONTADO';
         const limite = Number(item.limite_credito) || 0;
         const isCredito = tipoPago.toUpperCase().includes('CREDITO') || tipoPago.toUpperCase().includes('CRÉDITO');
+        const tipoInv = item.tipo_inventario || 'VARIOS';
         return (
           <tr key={item.id}>
             <td style={{ fontWeight: 600 }}>{item.codigo_sap}</td>
@@ -301,6 +302,12 @@ export default function MaestroPage() {
             <td style={{ textAlign: 'right', fontWeight: 600 }}>
               {isCredito ? `$ ${limite.toLocaleString('es-CO')}` : '—'}
             </td>
+            <td>
+              <span className={`badge ${tipoInv === 'UNICO' ? 'badge-warning' : 'badge-neutral'}`}>
+                {tipoInv}
+              </span>
+            </td>
+            <td style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>{item.grupo_inventario || '—'}</td>
             {canEdit && (
               <td>
                 <div style={{ display: 'flex', gap: 6 }}>
@@ -421,6 +428,30 @@ export default function MaestroPage() {
                       </div>
                     </>
                   )}
+                  <div className="form-group">
+                    <label className="form-label">Tipo Inventario PT</label>
+                    <select name="tipo_inventario" className="form-input" value={formData.tipo_inventario || 'VARIOS'} onChange={handleInputChange}>
+                      <option value="VARIOS">VARIOS (Inventario compartido)</option>
+                      <option value="UNICO">UNICO (Bodega exclusiva)</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Grupo Inventario</label>
+                    <input type="text" name="grupo_inventario" className="form-input" 
+                      placeholder={formData.tipo_inventario === 'UNICO' ? 'Ej: VILTAGRO SAS' : 'Automático por casa formuladora'}
+                      value={formData.grupo_inventario || ''} onChange={handleInputChange}
+                      list="grupo-inv-list" />
+                    <datalist id="grupo-inv-list">
+                      {Array.from(new Set(data.map(d => d.grupo_inventario).filter(Boolean))).map((g: any) => (
+                        <option key={g} value={g} />
+                      ))}
+                    </datalist>
+                    <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                      {formData.tipo_inventario === 'UNICO' 
+                        ? '* Escriba el nombre del grupo exclusivo de este cliente' 
+                        : '* Se asignará automáticamente según casa formuladora'}
+                    </small>
+                  </div>
                 </>
               )}
 
@@ -536,6 +567,8 @@ export default function MaestroPage() {
                       <th style={{ verticalAlign: 'top' }}>Población {renderFilterInput("poblacion")}</th>
                       <th style={{ verticalAlign: 'top', width: '100px' }}>Tipo Pago {renderFilterInput("tipo_pago")}</th>
                       <th style={{ verticalAlign: 'top', width: '140px', textAlign: 'right' }}>Límite Crédito</th>
+                      <th style={{ verticalAlign: 'top', width: '90px' }}>Tipo Inv. {renderFilterInput("tipo_inventario")}</th>
+                      <th style={{ verticalAlign: 'top', width: '140px' }}>Grupo Inv. {renderFilterInput("grupo_inventario")}</th>
                       {canEdit && <th style={{ verticalAlign: 'top', width: 80 }}>Acciones</th>}
                     </>
                   )}

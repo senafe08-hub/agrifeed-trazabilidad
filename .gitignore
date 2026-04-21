@@ -23,5 +23,28 @@ dist-ssr
 *.sln
 *.sw?
 
-# Signing keys (NEVER commit these)
+# ==========================================
+# 🛑 REGLAS DE SEGURIDAD Y LIMPIEZA DE GITHUB
+# ==========================================
+
+# 1. NUNCA subir llaves privadas o contraseñas
 src-tauri/keys/agrifeed.key
+.env
+.env.*
+
+# 2. NUNCA subir la carpeta de compilación pesada (Target)
+src-tauri/target/
+
+# 3. NUNCA subir los instaladores al código fuente (Se suben a "Releases")
+releases/
+*.exe
+*.msi
+*.zip
+
+# 4. NUNCA subir archivos de Excel, PDF o datos exportados localmente
+*.pdf
+*.xlsx
+*.xls
+*.csv
+*.docx
+*.doc
