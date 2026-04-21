@@ -1,4 +1,4 @@
-# Logs
+# Logs y archivos de depuración
 logs
 *.log
 npm-debug.log*
@@ -7,7 +7,10 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencias (se regeneran con npm install)
 node_modules
+
+# Build output (se regenera con npm run build)
 dist
 dist-ssr
 *.local
@@ -24,27 +27,79 @@ dist-ssr
 *.sw?
 
 # ==========================================
-# 🛑 REGLAS DE SEGURIDAD Y LIMPIEZA DE GITHUB
+# 🛑 SEGURIDAD: Claves y credenciales
 # ==========================================
-
-# 1. NUNCA subir llaves privadas o contraseñas
 src-tauri/keys/agrifeed.key
 .env
 .env.*
 
-# 2. NUNCA subir la carpeta de compilación pesada (Target)
+# ==========================================
+# 🛑 COMPILACIÓN: Archivos pesados
+# ==========================================
 src-tauri/target/
-
-# 3. NUNCA subir los instaladores al código fuente (Se suben a "Releases")
 releases/
 *.exe
 *.msi
-*.zip
 
-# 4. NUNCA subir archivos de Excel, PDF o datos exportados localmente
+# ==========================================
+# 🛑 ARCHIVOS DE OFICINA: No son código
+# ==========================================
 *.pdf
 *.xlsx
 *.xls
 *.csv
 *.docx
 *.doc
+*.zip
+
+# ==========================================
+# 🛑 BASURA DE DESARROLLO: Logs, tests, migraciones viejas
+# ==========================================
+
+# Logs de compilación y errores
+build_log.txt
+compile_errors.txt
+dev_output.txt
+errors.txt
+ts_errors.txt
+tsc_check.txt
+tsc_check2.txt
+tsc_check3.txt
+tsc_err.txt
+tsc_output.txt
+tsc_output_utf8.txt
+
+# Scripts de migración (ya ejecutados, no se necesitan más)
+migracion_reportes_turno.sql
+migrar_cupos.mjs
+migrar_materiales_inventario.mjs
+migration_despachos.cjs
+migration_facturacion_v2.sql
+migration_historico_data.cjs
+add_total_bultos_to_reportes.sql
+sql_inventario.sql
+supabase_mrp_migration.sql
+
+# Scripts de prueba / debug / temporales
+test.js
+test2.js
+test_despachos.js
+check_estado.cjs
+div_depth.py
+div_depth.txt
+demo_sidebars.html
+abrir_en_navegador.bat
+
+# Documentos de planificación interna (no son parte de la app)
+implementation_plan.md
+task.md
+walkthrough.md
+
+# Scripts de utilidad (solo para tu PC)
+limpiar_nube.ps1
+
+# Carpeta de scratch (scripts temporales)
+scratch/
+
+# Submódulo huérfano
+agrifeed-trazabilidad

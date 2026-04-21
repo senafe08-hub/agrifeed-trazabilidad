@@ -1,2 +1,0 @@
-﻿src/pages/ProduccionPage.tsx(5,10): error TS6133: 'BarChart' is declared but its value is never read.
-src/pages/ProduccionPage.tsx(5,20): error TS6133: 'Bar' is declared but its value is never read.

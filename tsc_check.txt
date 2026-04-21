@@ -1,2 +1,0 @@
-﻿src/lib/supabase.ts(81,40): error TS2339: Property 'descripcion' does not exist on type '{ descripcion: any; }[]'.
-src/lib/supabase.ts(82,49): error TS2339: Property 'descripcion' does not exist on type '{ descripcion: any; }[]'.
