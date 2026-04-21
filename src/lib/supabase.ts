@@ -16,9 +16,9 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// These will be configured when the user provides their Supabase credentials
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://YOUR_PROJECT.supabase.co';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'YOUR_ANON_KEY';
+// Llaves públicas de Supabase (es seguro que estén en el cliente, la seguridad la maneja el RLS)
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://schhqtttjysiyghwmefv.supabase.co';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_mZeu7Ba0_WrzO-pImkqAow_tHlPoa5p';
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {

@@ -38,8 +38,7 @@ function App() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
-  // For demo mode: skip auth if Supabase isn't configured
-  const isDemoMode = !import.meta.env.VITE_SUPABASE_URL || import.meta.env.VITE_SUPABASE_URL === 'https://YOUR_PROJECT.supabase.co';
+  // El modo demo ha sido removido. La app siempre se conectará a Supabase en producción.
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -80,11 +79,7 @@ function App() {
     setLoginError(null);
     setLoginLoading(true);
 
-    if (isDemoMode) {
-      setLoginError('El sistema requiere conexión a Supabase.');
-      setLoginLoading(false);
-      return;
-    }
+    setLoginLoading(true);
 
     if (!navigator.onLine) {
       setLoginError('No hay conexión a internet. Revisa tu red e intenta nuevamente.');
