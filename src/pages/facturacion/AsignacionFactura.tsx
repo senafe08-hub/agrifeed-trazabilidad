@@ -443,7 +443,7 @@ export default function AsignacionFactura({ onRefreshKpis, isAdmin, canEdit = tr
                           </span>
                           <span style={{ fontSize: '0.8rem', fontFamily: 'monospace' }}>Cód. Alimento: {det.codigo_alimento || '—'}</span>
                           <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Ref: {det.referencia || '—'}</span>
-                          <div style={{ marginTop: 6, padding: '6px 8px', background: '#fff', borderRadius: 4, border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <div style={{ marginTop: 6, padding: '6px 8px', background: 'var(--bg-surface)', borderRadius: 4, border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 4 }}>
                               <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
                                 <span>Prog. total:</span> <strong style={{ color: 'var(--text-color)' }}>{programado} bultos</strong>
                               </div>

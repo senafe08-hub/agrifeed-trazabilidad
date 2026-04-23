@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react';
-import { RefreshCw, CheckCircle, XCircle, Edit3 } from 'lucide-react';
+import { RefreshCw, CheckCircle, XCircle, Edit3, Trash2 } from 'lucide-react';
 import { fetchPropuestasOP, revisarPropuestaOP } from '../lib/api/ventas';
+import { usePermissions } from '../lib/permissions';
+import supabase, { registrarAuditoria } from '../lib/supabase';
 
 export default function PropuestasOPPanel() {
+  const { userRole } = usePermissions('programacion');
+  const isAdmin = userRole === 'Administrador';
   const [loading, setLoading] = useState(false);
   const [propuestas, setPropuestas] = useState<any[]>([]);
   const [filtroEstado, setFiltroEstado] = useState('PROPUESTA');
@@ -50,6 +54,16 @@ export default function PropuestasOPPanel() {
     } catch (err: any) { alert('Error: ' + err.message); }
   }
 
+  async function handleEliminar(propuesta: any) {
+    if (!window.confirm(`¿Eliminar propuesta de ${propuesta.referencia || 'SAP '+propuesta.codigo_sap}? Esta acción no se puede deshacer.`)) return;
+    try {
+      const { error } = await supabase.from('propuestas_op').delete().eq('id', propuesta.id);
+      if (error) throw error;
+      await registrarAuditoria('DELETE', 'Propuestas MRP', `Propuesta ${propuesta.id} eliminada: ${propuesta.referencia || propuesta.codigo_sap}`);
+      loadData();
+    } catch (err: any) { alert('Error: ' + err.message); }
+  }
+
   return (
     <div className="card" style={{ marginTop: 16 }}>
       <div className="card-header">
@@ -72,23 +86,27 @@ export default function PropuestasOPPanel() {
                 <th style={{ width: 80 }}>Semana</th>
                 <th>Alimento (SAP)</th>
                 <th>Casa</th>
+                <th>Cliente / Grupo</th>
+                <th>Observaciones</th>
                 <th style={{ textAlign: 'right' }}>Demanda</th>
                 <th style={{ textAlign: 'right' }}>Inv. + Pend.</th>
                 <th style={{ textAlign: 'right' }}>Necesidad</th>
                 <th style={{ textAlign: 'right' }}>Baches</th>
                 <th style={{ textAlign: 'right' }}>Total Bultos</th>
                 <th style={{ textAlign: 'center' }}>Estado</th>
-                <th style={{ width: 120, textAlign: 'center' }}>Acciones</th>
+                <th style={{ width: 140, textAlign: 'center' }}>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {loading ? <tr><td colSpan={10} style={{ textAlign: 'center', padding: 30 }}>Cargando propuestas...</td></tr> :
-               propuestas.length === 0 ? <tr><td colSpan={10} style={{ textAlign: 'center', padding: 30 }}>No hay propuestas en este estado.</td></tr> :
+              {loading ? <tr><td colSpan={12} style={{ textAlign: 'center', padding: 30 }}>Cargando propuestas...</td></tr> :
+               propuestas.length === 0 ? <tr><td colSpan={12} style={{ textAlign: 'center', padding: 30 }}>No hay propuestas en este estado.</td></tr> :
                propuestas.map(p => (
                  <tr key={p.id}>
                    <td style={{ fontWeight: 600 }}>Sem {p.semana}</td>
                    <td><span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{p.codigo_sap}</span> <br/>{p.referencia || 'Ver Maestro'}</td>
                    <td><span className="badge badge-success">{p.casas_formuladoras?.nombre || p.casa_formuladora_id}</span></td>
+                   <td style={{ fontSize: '0.8rem' }}>{p.clienteNombre || p.grupo || '—'}</td>
+                   <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)', maxWidth: 120, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={p.observaciones}>{p.observaciones || '—'}</td>
                    <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{p.demanda_actual + p.demanda_proxima}</td>
                    <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{p.inventario_fisico + p.op_pendientes}</td>
                    <td style={{ textAlign: 'right', fontWeight: 600, color: '#ef4444' }}>{p.necesidad_neta}</td>
@@ -106,10 +124,12 @@ export default function PropuestasOPPanel() {
                          <button className="btn btn-sm btn-icon" style={{ color: '#16a34a', background: '#dcfce7' }} onClick={() => handleAceptar(p)} title="Aceptar y Crear OP"><CheckCircle size={16} /></button>
                          <button className="btn btn-sm btn-icon" style={{ color: '#d97706', background: '#fef3c7' }} onClick={() => { setShowAjustar(p); setBachesCustom(p.baches_propuestos); }} title="Ajustar Baches"><Edit3 size={16} /></button>
                          <button className="btn btn-sm btn-icon" style={{ color: '#dc2626', background: '#fee2e2' }} onClick={() => setShowRechazar(p)} title="Rechazar"><XCircle size={16} /></button>
+                         {isAdmin && <button className="btn btn-sm btn-icon" style={{ color: '#7f1d1d', background: '#fecaca' }} onClick={() => handleEliminar(p)} title="Eliminar (Admin)"><Trash2 size={14} /></button>}
                        </div>
                      ) : (
-                       <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                         {p.reviewed_by ? p.reviewed_by.split('@')[0] : 'Sistema'}
+                       <div style={{ display: 'flex', gap: 4, alignItems: 'center', justifyContent: 'center' }}>
+                         <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{p.reviewed_by ? p.reviewed_by.split('@')[0] : 'Sistema'}</span>
+                         {isAdmin && <button className="btn btn-sm btn-icon" style={{ color: '#7f1d1d', background: '#fecaca' }} onClick={() => handleEliminar(p)} title="Eliminar (Admin)"><Trash2 size={14} /></button>}
                        </div>
                      )}
                    </td>

@@ -339,7 +339,7 @@ export default function DashboardPage() {
       <div style={{
         display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center',
         marginBottom: 20, padding: '10px 16px',
-        background: '#fff', borderRadius: 12, border: '1px solid var(--border-color)',
+        background: 'var(--bg-surface)', borderRadius: 12, border: '1px solid var(--border-color)',
         gap: 10,
         boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
       }}>
@@ -375,7 +375,7 @@ export default function DashboardPage() {
           <div className="kpi-icon gold" style={{ background: 'linear-gradient(135deg, #fef3c7, #fde68a)' }}><Calendar size={22} color="#d97706" /></div>
           <div className="kpi-info" style={{ width: '100%' }}>
             <h3 style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>Programado</h3>
-            <div className="kpi-value" style={{ fontSize: '1.6rem' }}>{loading ? '...' : kpis.programados.toLocaleString()}</div>
+            <div className="kpi-value" style={{ fontSize: '1.6rem' }}>{loading ? <div className="skeleton skeleton-text"></div> : kpis.programados.toLocaleString()}</div>
             <div className="kpi-change" style={{ color: '#64748b' }}>{kpis.totalOps} OPs programadas</div>
           </div>
         </div>
@@ -383,7 +383,7 @@ export default function DashboardPage() {
           <div className="kpi-icon green" style={{ background: 'linear-gradient(135deg, #dcfce7, #bbf7d0)' }}><Factory size={22} color="#15803d" /></div>
           <div className="kpi-info" style={{ width: '100%' }}>
             <h3 style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>Producido</h3>
-            <div className="kpi-value" style={{ fontSize: '1.6rem' }}>{loading ? '...' : kpis.producidos.toLocaleString()}</div>
+            <div className="kpi-value" style={{ fontSize: '1.6rem' }}>{loading ? <div className="skeleton skeleton-text"></div> : kpis.producidos.toLocaleString()}</div>
             <div className="kpi-change positive">{cumplimientoProduccion}% sobre meta</div>
           </div>
         </div>
@@ -391,7 +391,7 @@ export default function DashboardPage() {
           <div className="kpi-icon blue" style={{ background: 'linear-gradient(135deg, #dbeafe, #bfdbfe)' }}><Truck size={22} color="#1d4ed8" /></div>
           <div className="kpi-info" style={{ width: '100%' }}>
             <h3 style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>Despachado</h3>
-            <div className="kpi-value" style={{ fontSize: '1.6rem' }}>{loading ? '...' : kpis.despachados.toLocaleString()}</div>
+            <div className="kpi-value" style={{ fontSize: '1.6rem' }}>{loading ? <div className="skeleton skeleton-text"></div> : kpis.despachados.toLocaleString()}</div>
             <div className="kpi-change">{cumplimientoDespacho}% sobre prod.</div>
           </div>
         </div>
@@ -399,7 +399,7 @@ export default function DashboardPage() {
           <div className="kpi-icon" style={{ background: 'linear-gradient(135deg, #ede9fe, #ddd6fe)', color: '#6d28d9' }}><Receipt size={22} /></div>
           <div className="kpi-info" style={{ width: '100%' }}>
             <h3 style={{ fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>Facturado</h3>
-            <div className="kpi-value" style={{ fontSize: '1.6rem' }}>{loading ? '...' : kpis.facturados.toLocaleString()}</div>
+            <div className="kpi-value" style={{ fontSize: '1.6rem' }}>{loading ? <div className="skeleton skeleton-text"></div> : kpis.facturados.toLocaleString()}</div>
             <div className="kpi-change">{cumplimientoFactura}% sobre desp.</div>
           </div>
         </div>
@@ -423,61 +423,61 @@ export default function DashboardPage() {
         <Activity size={18} color="var(--primary-color)"/> Enlaces a Módulos e Inteligencia Operativa
       </h3>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 24 }}>
-        <Link to="/programacion" className="module-card" style={{ textDecoration: 'none', padding: '16px', background: 'linear-gradient(145deg, #fff, #f8fcf8)', borderRadius: 12, border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.03)', transition: 'transform 0.2s, box-shadow 0.2s', cursor: 'pointer' }}>
+        <Link to="/programacion" className="module-card" style={{ textDecoration: 'none', padding: '16px', background: 'var(--bg-surface)', borderRadius: 12, border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.03)', transition: 'transform 0.2s, box-shadow 0.2s', cursor: 'pointer' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ padding: 8, background: '#f59e0b15', borderRadius: 8, color: '#d97706', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Search size={18} /></div>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', background: '#f1f5f9', padding: '2px 8px', borderRadius: 12 }}>Programación</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-surface-hover)', padding: '2px 8px', borderRadius: 12 }}>Programación</span>
           </div>
           <div>
-            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#334155' }}>{(kpis.programados * 40).toLocaleString()} KG</div>
+            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)' }}>{(kpis.programados * 40).toLocaleString()} KG</div>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Masa Programada Total</div>
           </div>
           <div style={{ marginTop: 'auto', fontSize: '0.8rem', color: 'var(--primary-color)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>Ir a Programación →</div>
         </Link>
         
-        <Link to="/produccion" className="module-card" style={{ textDecoration: 'none', padding: '16px', background: 'linear-gradient(145deg, #fff, #f8fcf8)', borderRadius: 12, border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.03)', transition: 'transform 0.2s, box-shadow 0.2s', cursor: 'pointer' }}>
+        <Link to="/produccion" className="module-card" style={{ textDecoration: 'none', padding: '16px', background: 'var(--bg-surface)', borderRadius: 12, border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.03)', transition: 'transform 0.2s, box-shadow 0.2s', cursor: 'pointer' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ padding: 8, background: '#22c55e15', borderRadius: 8, color: '#15803d', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Factory size={18} /></div>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', background: '#f1f5f9', padding: '2px 8px', borderRadius: 12 }}>Producción</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-surface-hover)', padding: '2px 8px', borderRadius: 12 }}>Producción</span>
           </div>
           <div>
-            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#334155' }}>{kpis.lotesCompletos} OPs</div>
+            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)' }}>{kpis.lotesCompletos} OPs</div>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Producción Completa</div>
           </div>
           <div style={{ marginTop: 'auto', fontSize: '0.8rem', color: 'var(--primary-color)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>Gestión Producción →</div>
         </Link>
 
-        <Link to="/despachos" className="module-card" style={{ textDecoration: 'none', padding: '16px', background: 'linear-gradient(145deg, #fff, #f8fcf8)', borderRadius: 12, border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.03)', transition: 'transform 0.2s, box-shadow 0.2s', cursor: 'pointer' }}>
+        <Link to="/despachos" className="module-card" style={{ textDecoration: 'none', padding: '16px', background: 'var(--bg-surface)', borderRadius: 12, border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.03)', transition: 'transform 0.2s, box-shadow 0.2s', cursor: 'pointer' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ padding: 8, background: '#3b82f615', borderRadius: 8, color: '#1d4ed8', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Truck size={18} /></div>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', background: '#f1f5f9', padding: '2px 8px', borderRadius: 12 }}>Despachos</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-surface-hover)', padding: '2px 8px', borderRadius: 12 }}>Despachos</span>
           </div>
           <div>
-            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#334155' }}>{kpis.clientesActivos}</div>
+            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)' }}>{kpis.clientesActivos}</div>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Clientes Atendidos</div>
           </div>
           <div style={{ marginTop: 'auto', fontSize: '0.8rem', color: 'var(--primary-color)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>Control Despachos →</div>
         </Link>
 
-        <Link to="/facturacion" className="module-card" style={{ textDecoration: 'none', padding: '16px', background: 'linear-gradient(145deg, #fff, #f8fcf8)', borderRadius: 12, border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.03)', transition: 'transform 0.2s, box-shadow 0.2s', cursor: 'pointer' }}>
+        <Link to="/facturacion" className="module-card" style={{ textDecoration: 'none', padding: '16px', background: 'var(--bg-surface)', borderRadius: 12, border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.03)', transition: 'transform 0.2s, box-shadow 0.2s', cursor: 'pointer' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ padding: 8, background: '#8b5cf615', borderRadius: 8, color: '#6d28d9', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Receipt size={18} /></div>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', background: '#f1f5f9', padding: '2px 8px', borderRadius: 12 }}>Facturación</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-surface-hover)', padding: '2px 8px', borderRadius: 12 }}>Facturación</span>
           </div>
           <div>
-            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#334155' }}>{kpis.totalOps} OPs</div>
+            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)' }}>{kpis.totalOps} OPs</div>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Órdenes Totales Filtradas</div>
           </div>
           <div style={{ marginTop: 'auto', fontSize: '0.8rem', color: 'var(--primary-color)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>Ir a Facturación →</div>
         </Link>
         
-        <Link to="/maestro" className="module-card" style={{ textDecoration: 'none', padding: '16px', background: 'linear-gradient(145deg, #fff, #f8fcf8)', borderRadius: 12, border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.03)', transition: 'transform 0.2s, box-shadow 0.2s', cursor: 'pointer' }}>
+        <Link to="/maestro" className="module-card" style={{ textDecoration: 'none', padding: '16px', background: 'var(--bg-surface)', borderRadius: 12, border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.03)', transition: 'transform 0.2s, box-shadow 0.2s', cursor: 'pointer' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ padding: 8, background: '#64748b15', borderRadius: 8, color: '#334155', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Database size={18} /></div>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', background: '#f1f5f9', padding: '2px 8px', borderRadius: 12 }}>BD</span>
+            <div style={{ padding: 8, background: '#64748b15', borderRadius: 8, color: 'var(--text-primary)', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Database size={18} /></div>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-surface-hover)', padding: '2px 8px', borderRadius: 12 }}>BD</span>
           </div>
           <div>
-            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: '#334155' }}>CATÁLOGOS</div>
+            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)' }}>CATÁLOGOS</div>
             <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Clientes & Fórmulas</div>
           </div>
           <div style={{ marginTop: 'auto', fontSize: '0.8rem', color: 'var(--primary-color)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>Modificar Base Datos →</div>
@@ -607,7 +607,7 @@ export default function DashboardPage() {
                     <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#1e293b' }}>{s.nombre}</span>
                     <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>{s.turnos} turnos</span>
                   </div>
-                  <div style={{ width: '100%', height: 18, background: '#f1f5f9', borderRadius: 10, overflow: 'hidden', position: 'relative' }}>
+                  <div style={{ width: '100%', height: 18, background: 'var(--bg-surface-hover)', borderRadius: 10, overflow: 'hidden', position: 'relative' }}>
                     <div style={{
                       width: `${Math.min(s.promedio, 100)}%`, height: '100%',
                       background: `linear-gradient(90deg, ${pctColor(s.promedio)}aa, ${pctColor(s.promedio)})`,
@@ -632,7 +632,7 @@ export default function DashboardPage() {
                     <span style={{ fontWeight: 700, fontSize: '0.85rem', color: '#1e293b' }}>{d.nombre}</span>
                     <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600 }}>{d.turnos} turnos</span>
                   </div>
-                  <div style={{ width: '100%', height: 18, background: '#f1f5f9', borderRadius: 10, overflow: 'hidden', position: 'relative' }}>
+                  <div style={{ width: '100%', height: 18, background: 'var(--bg-surface-hover)', borderRadius: 10, overflow: 'hidden', position: 'relative' }}>
                     <div style={{
                       width: `${Math.min(d.promedio, 100)}%`, height: '100%',
                       background: `linear-gradient(90deg, ${pctColor(d.promedio)}aa, ${pctColor(d.promedio)})`,
@@ -658,7 +658,7 @@ export default function DashboardPage() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--bg-surface)', borderRadius: 12, border: '1px solid #e2e8f0', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', overflow: 'hidden' }}>
             <div style={{ background: '#fef3c7', padding: '12px 16px', borderBottom: '1px solid #fde68a', display: 'flex', alignItems: 'center', gap: 8, color: '#b45309', fontWeight: 700, fontSize: '0.9rem' }}>
               <Clock size={16} /> Demoras en Producción
             </div>
@@ -667,8 +667,8 @@ export default function DashboardPage() {
                 bottlenecks.prod.length === 0 ? <div style={{ color: '#22c55e', fontSize: '0.85rem', fontWeight: 600 }}>Al día</div> :
                 bottlenecks.prod.map((b: any, i: number) => (
                   <div key={i} style={{ padding: '8px 0', borderBottom: i < bottlenecks.prod.length - 1 ? '1px solid #f1f5f9' : 'none', fontSize: '0.82rem' }}>
-                    <strong style={{ color: '#334155' }}>OP {b.lote}</strong> | <span style={{ color: '#ef4444', fontWeight: 600 }}>{b.st}</span>
-                    <div style={{ color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.alimento}</div>
+                    <strong style={{ color: 'var(--text-primary)' }}>OP {b.lote}</strong> | <span style={{ color: '#ef4444', fontWeight: 600 }}>{b.st}</span>
+                    <div style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.alimento}</div>
                     <div style={{ color: '#94a3b8', fontSize: '0.75rem' }}>{b.cliente}</div>
                   </div>
                 ))
@@ -676,7 +676,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--bg-surface)', borderRadius: 12, border: '1px solid #e2e8f0', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', overflow: 'hidden' }}>
             <div style={{ background: '#e0e7ff', padding: '12px 16px', borderBottom: '1px solid #c7d2fe', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#4338ca', fontWeight: 700, fontSize: '0.9rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Truck size={16} /> Listo sin Despachar</div>
               {bottlenecks.totals?.retenidos > 0 && <span style={{ fontSize: '0.75rem', background: '#4338ca', color: '#fff', padding: '2px 8px', borderRadius: 12 }}>{bottlenecks.totals.retenidos.toLocaleString()} blts</span>}
@@ -686,8 +686,8 @@ export default function DashboardPage() {
                 bottlenecks.desp.length === 0 ? <div style={{ color: '#22c55e', fontSize: '0.85rem', fontWeight: 600 }}>Al día</div> :
                 bottlenecks.desp.map((b: any, i: number) => (
                   <div key={i} style={{ padding: '8px 0', borderBottom: i < bottlenecks.desp.length - 1 ? '1px solid #f1f5f9' : 'none', fontSize: '0.82rem' }}>
-                    <strong style={{ color: '#334155' }}>OP {b.lote}</strong> | <span style={{ color: '#ef4444', fontWeight: 600 }}>{b.st}</span>
-                    <div style={{ color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.alimento}</div>
+                    <strong style={{ color: 'var(--text-primary)' }}>OP {b.lote}</strong> | <span style={{ color: '#ef4444', fontWeight: 600 }}>{b.st}</span>
+                    <div style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.alimento}</div>
                     <div style={{ color: '#94a3b8', fontSize: '0.75rem' }}>{b.cliente}</div>
                   </div>
                 ))
@@ -695,7 +695,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', overflow: 'hidden' }}>
+          <div style={{ background: 'var(--bg-surface)', borderRadius: 12, border: '1px solid #e2e8f0', boxShadow: '0 4px 15px rgba(0,0,0,0.03)', overflow: 'hidden' }}>
             <div style={{ background: '#fce7f3', padding: '12px 16px', borderBottom: '1px solid #fbcfe8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#be185d', fontWeight: 700, fontSize: '0.9rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Receipt size={16} /> Despachado sin Facturar</div>
               {bottlenecks.totals?.sinFacturar > 0 && <span style={{ fontSize: '0.75rem', background: '#be185d', color: '#fff', padding: '2px 8px', borderRadius: 12 }}>{bottlenecks.totals.sinFacturar.toLocaleString()} blts</span>}
@@ -705,8 +705,8 @@ export default function DashboardPage() {
                 bottlenecks.fact.length === 0 ? <div style={{ color: '#22c55e', fontSize: '0.85rem', fontWeight: 600 }}>Al día</div> :
                 bottlenecks.fact.map((b: any, i: number) => (
                   <div key={i} style={{ padding: '8px 0', borderBottom: i < bottlenecks.fact.length - 1 ? '1px solid #f1f5f9' : 'none', fontSize: '0.82rem' }}>
-                    <strong style={{ color: '#334155' }}>OP {b.lote}</strong> | <span style={{ color: '#ef4444', fontWeight: 600 }}>{b.st}</span>
-                    <div style={{ color: '#64748b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.alimento}</div>
+                    <strong style={{ color: 'var(--text-primary)' }}>OP {b.lote}</strong> | <span style={{ color: '#ef4444', fontWeight: 600 }}>{b.st}</span>
+                    <div style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.alimento}</div>
                     <div style={{ color: '#94a3b8', fontSize: '0.75rem' }}>{b.cliente}</div>
                   </div>
                 ))
@@ -716,7 +716,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div style={{ marginTop: 24, background: '#fff', borderRadius: 12, border: '1px solid var(--border-color)', overflow: 'hidden' }}>
+      <div style={{ marginTop: 24, background: 'var(--bg-surface)', borderRadius: 12, border: '1px solid var(--border-color)', overflow: 'hidden' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Activity size={18} style={{ color: '#4b5563' }} /> Análisis de Mermas de Producción
@@ -724,8 +724,8 @@ export default function DashboardPage() {
           <div style={{ display: 'flex', gap: 16, background: '#f8fafc', padding: '6px 16px', borderRadius: 20, border: '1px solid #e2e8f0' }}>
             {mermasTotals.prog > 0 ? (
               <>
-                <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Prog. Periodo: <strong>{mermasTotals.prog}</strong></div>
-                <div style={{ fontSize: '0.8rem', color: '#64748b', borderLeft: '1px solid #cbd5e1', paddingLeft: 12 }}>Real Producido: <strong>{mermasTotals.ent}</strong></div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Prog. Periodo: <strong>{mermasTotals.prog}</strong></div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', borderLeft: '1px solid #cbd5e1', paddingLeft: 12 }}>Real Producido: <strong>{mermasTotals.ent}</strong></div>
                 <div style={{ fontSize: '0.85rem', fontWeight: 700, borderLeft: '1px solid #cbd5e1', paddingLeft: 12, color: mermasTotals.variacion > 0 ? '#15803d' : (mermasTotals.variacion < 0 ? '#b91c1c' : '#475569') }}>
                   Merma Global: {mermasTotals.variacion > 0 ? '+' : ''}{mermasTotals.variacion} <span style={{ opacity: 0.8 }}>({(mermasTotals.variacion / mermasTotals.prog * 100).toFixed(2)}%)</span>
                 </div>
@@ -739,7 +739,7 @@ export default function DashboardPage() {
           {loading ? (
              <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Cargando mermas...</div>
           ) : mermasData.length === 0 ? (
-             <div style={{ padding: 40, textAlign: 'center', color: '#64748b' }}>
+             <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
                <CheckCircle2 size={32} style={{ color: '#22c55e', margin: '0 auto 8px', opacity: 0.5 }} />
                <div>No se han registrado mermas. Todas las OPs cerraron exactamente igual a lo programado.</div>
              </div>
@@ -748,10 +748,10 @@ export default function DashboardPage() {
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.85rem' }}>
                 <thead style={{ position: 'sticky', top: 0, background: '#f8fafc', zIndex: 10 }}>
                   <tr>
-                    <th style={{ padding: '12px 20px', borderBottom: '1px solid #e2e8f0', color: '#64748b', fontWeight: 600 }}>Identificación</th>
-                    <th style={{ padding: '12px 20px', borderBottom: '1px solid #e2e8f0', color: '#64748b', fontWeight: 600 }}>Cálculo Programado</th>
-                    <th style={{ padding: '12px 20px', borderBottom: '1px solid #e2e8f0', color: '#64748b', fontWeight: 600 }}>Bultos Producidos</th>
-                    <th style={{ padding: '12px 20px', borderBottom: '1px solid #e2e8f0', color: '#64748b', fontWeight: 600, textAlign: 'right' }}>Variación (Merma)</th>
+                    <th style={{ padding: '12px 20px', borderBottom: '1px solid #e2e8f0', color: 'var(--text-muted)', fontWeight: 600 }}>Identificación</th>
+                    <th style={{ padding: '12px 20px', borderBottom: '1px solid #e2e8f0', color: 'var(--text-muted)', fontWeight: 600 }}>Cálculo Programado</th>
+                    <th style={{ padding: '12px 20px', borderBottom: '1px solid #e2e8f0', color: 'var(--text-muted)', fontWeight: 600 }}>Bultos Producidos</th>
+                    <th style={{ padding: '12px 20px', borderBottom: '1px solid #e2e8f0', color: 'var(--text-muted)', fontWeight: 600, textAlign: 'right' }}>Variación (Merma)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -761,7 +761,7 @@ export default function DashboardPage() {
                       <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
                         <td style={{ padding: '12px 20px' }}>
                           <div style={{ fontWeight: 700, color: '#1e293b' }}>OP {m.lote}</div>
-                          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{m.alimento}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{m.alimento}</div>
                         </td>
                         <td style={{ padding: '12px 20px', fontWeight: 500 }}>{m.prog} blts</td>
                         <td style={{ padding: '12px 20px', fontWeight: 500 }}>{m.ent} blts</td>

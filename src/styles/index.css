@@ -91,6 +91,27 @@
   --transition-slow: 400ms ease;
 }
 
+[data-theme='dark'] {
+  --bg-app: #121411;
+  --bg-surface: #1B1F1A;
+  --bg-surface-hover: #242922;
+  --bg-header: #1B1F1A;
+  
+  --text-primary: #E8F5E9;
+  --text-secondary: #A5C096;
+  --text-muted: #7C9A6E;
+  
+  --border-color: #2D362A;
+  
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.7);
+
+  --color-primary-light: rgba(46, 125, 50, 0.2);
+  --color-primary-hover: #43A047;
+}
+
 /* ── Reset & Base ── */
 *, *::before, *::after {
   margin: 0;
@@ -650,7 +671,7 @@ h4 { font-size: 1.125rem; }
   border-radius: var(--border-radius-md);
   box-shadow: 0 2px 12px rgba(0,0,0,0.03);
   border: 1px solid var(--border-color);
-  background: white;
+  background: var(--bg-surface);
 }
 
 .col-filter-input {
@@ -664,13 +685,13 @@ h4 { font-size: 1.125rem; }
   border-radius: 6px;
   font-weight: 500;
   color: var(--text-primary);
-  background: #f8f9fa;
+  background: var(--bg-app);
   transition: all var(--transition-fast);
 }
 .col-filter-input:focus {
   outline: none;
   border-color: var(--color-primary);
-  background: white;
+  background: var(--bg-surface);
   box-shadow: 0 0 0 2px rgba(46, 125, 50, 0.1);
 }
 
@@ -681,7 +702,7 @@ h4 { font-size: 1.125rem; }
 }
 
 .data-table thead {
-  background: #F8FAF7;
+  background: var(--bg-surface-hover);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -691,7 +712,7 @@ h4 { font-size: 1.125rem; }
   padding: 14px 16px;
   font-weight: 700;
   text-align: left;
-  color: #334A28;
+  color: var(--text-primary);
   font-size: 0.76rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -701,7 +722,7 @@ h4 { font-size: 1.125rem; }
 
 .data-table td {
   padding: 12px 16px;
-  border-bottom: 1px solid #f0f4ee;
+  border-bottom: 1px solid var(--border-color);
   vertical-align: middle;
   transition: background var(--transition-fast);
 }
@@ -715,7 +736,7 @@ h4 { font-size: 1.125rem; }
 }
 
 .data-table tbody tr:hover td {
-  background: #fcfdfb;
+  background: var(--bg-surface-hover);
 }
 
 /* ── Status Badges ── */
@@ -796,6 +817,41 @@ h4 { font-size: 1.125rem; }
   padding: 24px 28px;
   overflow-y: auto;
   flex: 1;
+}
+
+/* ── Skeletons ── */
+@keyframes skeletonPulse {
+  0% { background-color: rgba(200, 200, 200, 0.3); }
+  50% { background-color: rgba(200, 200, 200, 0.6); }
+  100% { background-color: rgba(200, 200, 200, 0.3); }
+}
+
+@keyframes skeletonPulseDark {
+  0% { background-color: rgba(255, 255, 255, 0.05); }
+  50% { background-color: rgba(255, 255, 255, 0.12); }
+  100% { background-color: rgba(255, 255, 255, 0.05); }
+}
+
+.skeleton {
+  animation: skeletonPulse 1.5s infinite ease-in-out;
+  border-radius: 6px;
+  display: inline-block;
+  color: transparent !important;
+}
+
+[data-theme='dark'] .skeleton {
+  animation: skeletonPulseDark 1.5s infinite ease-in-out;
+}
+
+.skeleton-text {
+  height: 1.6rem;
+  width: 60%;
+  margin: 4px 0;
+}
+.skeleton-chart {
+  width: 100%;
+  height: 100%;
+  border-radius: 12px;
 }
 
 .modal-footer {

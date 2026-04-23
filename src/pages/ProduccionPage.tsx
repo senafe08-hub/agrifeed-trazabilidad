@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Plus, Search, Edit2, Trash2, Download, Upload, ChevronLeft, ClipboardList, Lock, Unlock, Trophy } from 'lucide-react';
 import supabase, { registrarAuditoria } from '../lib/supabase';
-import PropuestasOPPanel from '../components/PropuestasOPPanel';
+
 import * as XLSX from 'xlsx';
 import { LineChart, Line, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 import { jsPDF } from 'jspdf';
@@ -17,7 +17,7 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
   const { canView, canEdit } = usePermissions('produccion');
 
   // Tabs & Turno Report
-  const [activeTab, setActiveTab] = useState<'registros' | 'reporte' | 'estado_ops' | 'reporte_explosion' | 'propuestas_op'>('registros');
+  const [activeTab, setActiveTab] = useState<'registros' | 'reporte' | 'estado_ops' | 'reporte_explosion'>('registros');
   const [reportMode, setReportMode] = useState<'lista' | 'nuevo' | 'detalle' | 'editar_detalle'>('lista');
   const [historialReportes, setHistorialReportes] = useState<any[]>([]);
   const [reporteFecha, setReporteFecha] = useState(new Date().toISOString().split('T')[0]);
@@ -1024,17 +1024,7 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
             Explosión de Materiales
           </button>
         )}
-        {canEdit && (
-          <button 
-            className={`btn ${activeTab === 'propuestas_op' ? 'btn-warning' : 'btn-outline'}`} 
-            onClick={() => setActiveTab('propuestas_op')}
-          >
-            Propuestas MRP
-          </button>
-        )}
       </div>
-
-      {activeTab === 'propuestas_op' && <PropuestasOPPanel />}
 
       {/* --- REGISTROS TAB --- */}
       <div style={{ display: activeTab === 'registros' ? 'block' : 'none', animation: 'fadeIn 0.3s ease' }}>
@@ -1474,7 +1464,7 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
                               +{diferencia.toLocaleString()} (+{difPct.toFixed(1)}%)
                             </span>
                           ) : (diferencia < 0 ? (
-                            <span className="badge" style={{ color: '#E65100', background: '#FFF3E0', padding: '4px 12px', fontSize: '0.75rem' }}>
+                            <span className="badge" style={{ color: '#E65100', background: 'var(--bg-surface-hover)', padding: '4px 12px', fontSize: '0.75rem' }}>
                               {diferencia.toLocaleString()} ({difPct.toFixed(1)}%)
                             </span>
                           ) : (
@@ -1525,13 +1515,13 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
 
             <div className="grid-2" style={{ marginBottom: '20px', alignItems: 'start' }}>
             <div className="card" style={{ border: '2px solid #FBC02D' }}>
-              <div className="card-header" style={{ background: '#FFF59D', color: '#000', padding: '8px 16px', minHeight: 'auto' }}>
+              <div className="card-header" style={{ background: 'var(--bg-surface)', color: 'var(--text-primary)', padding: '8px 16px', minHeight: 'auto' }}>
                 <span className="card-title" style={{ fontSize: '0.9rem', textAlign: 'center', width: '100%' }}>SUPERVISORES (Meta {META_BULTOS} Blts)</span>
               </div>
               <div className="card-body" style={{ padding: 0 }}>
                 <table className="data-table" style={{ border: 'none' }}>
                   <thead>
-                    <tr><th style={{ background: '#FFF9C4', color: '#333' }}>NOMBRE</th><th style={{ background: '#FFF9C4', color: '#333', textAlign: 'center' }}>%</th></tr>
+                    <tr><th style={{ background: 'var(--bg-surface-hover)', color: 'var(--text-primary)' }}>NOMBRE</th><th style={{ background: 'var(--bg-surface-hover)', color: 'var(--text-primary)', textAlign: 'center' }}>%</th></tr>
                   </thead>
                   <tbody>
                     {supervisorStats.map(s => (
@@ -1547,13 +1537,13 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
             </div>
 
             <div className="card" style={{ border: '2px solid #FBC02D' }}>
-              <div className="card-header" style={{ background: '#FFF59D', color: '#000', padding: '8px 16px', minHeight: 'auto' }}>
+              <div className="card-header" style={{ background: 'var(--bg-surface)', color: 'var(--text-primary)', padding: '8px 16px', minHeight: 'auto' }}>
                 <span className="card-title" style={{ fontSize: '0.9rem', textAlign: 'center', width: '100%' }}>DOSIFICADORES (Meta {META_BACHES} Baches)</span>
               </div>
               <div className="card-body" style={{ padding: 0 }}>
                 <table className="data-table" style={{ border: 'none' }}>
                   <thead>
-                    <tr><th style={{ background: '#FFF9C4', color: '#333' }}>NOMBRE</th><th style={{ background: '#FFF9C4', color: '#333', textAlign: 'center' }}>%</th></tr>
+                    <tr><th style={{ background: 'var(--bg-surface-hover)', color: 'var(--text-primary)' }}>NOMBRE</th><th style={{ background: 'var(--bg-surface-hover)', color: 'var(--text-primary)', textAlign: 'center' }}>%</th></tr>
                   </thead>
                   <tbody>
                     {dosificadorStats.map(d => (
@@ -1724,7 +1714,7 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
                   <h5 style={{ marginBottom: '16px', color: 'var(--text-color)', display: 'flex', gap: '10px', alignItems: 'center' }}>
                     Resumen de Producción 
                     {(reportMode === 'detalle' && reporteSavedInfo?.baches_dosificados >= META_BACHES && reporteSavedInfo?.total_bultos >= META_BULTOS) && (
-                      <span className="badge" style={{ background: '#FFF59D', color: '#F57F17', border: '1px solid #FBC02D', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span className="badge" style={{ background: 'var(--bg-surface)', color: '#F57F17', border: '1px solid #FBC02D', display: 'flex', alignItems: 'center', gap: 6 }}>
                         <Trophy size={14} fill="#F57F17" /> Turno Perfecto
                       </span>
                     )}

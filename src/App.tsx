@@ -14,6 +14,8 @@ import TrazabilidadPage from './pages/TrazabilidadPage';
 import AdminPage from './pages/AdminPage';
 import VentasPage from './pages/VentasPage';
 import supabase from './lib/supabase';
+import { WelcomeScreen } from './components/WelcomeFlow';
+import { ModuleSelectionScreen } from './components/ModuleSelectionScreen';
 
 // Mapeo de pseudo-correos a roles (temporal, lo ideal es guardarlo en una tabla 'roles_usuario' en Supabase)
 const ROLE_MAPPING: Record<string, string> = {
@@ -37,6 +39,7 @@ function App() {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [loginLoading, setLoginLoading] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [loginFlowStage, setLoginFlowStage] = useState<'none' | 'welcome' | 'selection'>('none');
 
   // El modo demo ha sido removido. La app siempre se conectará a Supabase en producción.
 
@@ -96,6 +99,8 @@ function App() {
         setLoginError(error.message === 'Invalid login credentials'
           ? 'Credenciales incorrectas. Verifica tu usuario y contraseña.'
           : error.message);
+      } else {
+        setLoginFlowStage('welcome');
       }
     } catch (err) {
       setLoginError('Error de red. Asegúrate de tener conexión a internet.');
@@ -108,6 +113,32 @@ function App() {
     await supabase.auth.signOut();
     setUser(null);
   };
+
+  // Auto-logout por inactividad (15 minutos)
+  useEffect(() => {
+    let inactivityTimer: NodeJS.Timeout;
+    
+    const resetTimer = () => {
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+      if (user) {
+        inactivityTimer = setTimeout(() => {
+          handleLogout();
+          setLoginError('Tu sesión expiró por inactividad. Por seguridad, te hemos desconectado.');
+        }, 15 * 60 * 1000);
+      }
+    };
+
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+    if (user) {
+      events.forEach(e => document.addEventListener(e, resetTimer));
+      resetTimer();
+    }
+
+    return () => {
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+      events.forEach(e => document.removeEventListener(e, resetTimer));
+    };
+  }, [user]);
 
   if (loading) {
     return (
@@ -176,20 +207,27 @@ function App() {
     <BrowserRouter>
       {offlineBanner}
       <UpdateChecker />
-      <Routes>
-        <Route element={<AppLayout userEmail={user.email || ''} userRole={userRole} onLogout={handleLogout} />}>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/maestro" element={<MaestroPage />} />
-          <Route path="/programacion" element={<ProgramacionPage />} />
-          <Route path="/produccion" element={<ProduccionPage isAdmin={userRole === 'admin' || userRole === 'Administrador'} />} />
-          <Route path="/despachos" element={<DespachosPage />} />
-          <Route path="/facturacion" element={<FacturacionPage />} />
-          <Route path="/trazabilidad" element={<TrazabilidadPage />} />
-          <Route path="/admin" element={<AdminPage />} />
-          <Route path="/ventas" element={<VentasPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
+      
+      {loginFlowStage === 'welcome' ? (
+        <WelcomeScreen onFinish={() => setLoginFlowStage('selection')} />
+      ) : loginFlowStage === 'selection' ? (
+        <ModuleSelectionScreen onSelect={() => setLoginFlowStage('none')} userRole={userRole} />
+      ) : (
+        <Routes>
+          <Route element={<AppLayout userEmail={user.email || ''} userRole={userRole} onLogout={handleLogout} />}>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/maestro" element={<MaestroPage />} />
+            <Route path="/programacion" element={<ProgramacionPage />} />
+            <Route path="/produccion" element={<ProduccionPage isAdmin={userRole === 'admin' || userRole === 'Administrador'} />} />
+            <Route path="/despachos" element={<DespachosPage />} />
+            <Route path="/facturacion" element={<FacturacionPage />} />
+            <Route path="/trazabilidad" element={<TrazabilidadPage />} />
+            <Route path="/admin" element={<AdminPage />} />
+            <Route path="/ventas" element={<VentasPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      )}
     </BrowserRouter>
   );
 }

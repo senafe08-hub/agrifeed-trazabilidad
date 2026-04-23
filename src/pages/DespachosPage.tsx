@@ -165,6 +165,68 @@ export default function DespachosPage() {
     if (details.length === 0) return toast.error('Debes agregar al menos una OP.');
     if (headerData.estado === 'despachado' && !headerData.remision) return toast.error('El número de remisión es obligatorio para despachos definitivos.');
     setSaving(true);
+    
+    // VALIDACIÓN ESTRICTA: Cruzar OP vs Cliente Destino
+    // No permitir despachar una OP de un grupo a un cliente de otro grupo diferente
+    try {
+      const opLotes = details.map(d => Number(d.op)).filter(Boolean);
+      if (opLotes.length > 0) {
+        const { data: opData } = await supabase.from('programacion')
+          .select('lote, cliente_id, codigo_sap, observaciones')
+          .in('lote', opLotes);
+        
+        const ventasApi = await import('../lib/api/ventas');
+        // Asegurar que las caches internas estén cargadas (necesarias para resolveGrupo)
+        await ventasApi.ensureCaches();
+        const clienteGrupoMap = await ventasApi.getClienteGrupoMap();
+        
+        // Resolver el grupo del CLIENTE al que se va a despachar
+        const grupoDestinoFull = ventasApi.resolveGrupo(Number(headerData.cliente_id), clienteGrupoMap) || '';
+        const baseGrupoDestino = grupoDestinoFull.split('|')[0].trim();
+        
+        for (const d of details) {
+          const op = opData?.find(o => String(o.lote) === String(d.op));
+          if (!op) continue;
+          
+          // Resolver el grupo del CLIENTE para quien se programó la OP originalmente
+          const grupoOrigenFull = ventasApi.resolveGrupo(op.cliente_id, clienteGrupoMap, op.observaciones) || '';
+          const baseGrupoOrigen = grupoOrigenFull.split('|')[0].trim();
+          
+          // Si son el mismo grupo base, todo bien
+          if (baseGrupoOrigen === baseGrupoDestino) continue;
+          
+          // EXCEPCIÓN: Si AMBOS pertenecen a la familia CERDOS VARIOS (ej. "CERDOS VARIOS PREMEX" y "CERDOS VARIOS")
+          const origenEsCerdosVarios = baseGrupoOrigen.startsWith('CERDOS VARIOS');
+          const destinoEsCerdosVarios = baseGrupoDestino.startsWith('CERDOS VARIOS');
+          
+          if (origenEsCerdosVarios && destinoEsCerdosVarios) continue;
+          
+          // CRUCE PROHIBIDO: OP de un grupo, despacho a otro grupo distinto
+          // Verificar si hay préstamos registrados que lo permitan
+          const { data: prestamos } = await supabase.from('prestamos_inventario')
+            .select('cantidad, codigo_sap')
+            .eq('codigo_sap', op.codigo_sap)
+            .in('estado', ['PENDIENTE', 'PARCIAL']);
+          
+          const totalPrestado = (prestamos || []).reduce((s, p) => s + (p.cantidad || 0), 0);
+          
+          if (totalPrestado < Number(d.cantidad_a_despachar || 0)) {
+            setSaving(false);
+            const msg = `⛔ DESPACHO BLOQUEADO\n\nLa OP ${op.lote} pertenece al grupo "${baseGrupoOrigen}" pero estás intentando despachar al grupo "${baseGrupoDestino}".\n\nNo se puede despachar inventario de un cliente único a otro grupo, ni viceversa.\n\nSi necesitas hacer esto, primero registra un Préstamo en el módulo de Inventario PT.`;
+            alert(msg);
+            toast.error(`OP ${op.lote} (${baseGrupoOrigen}) no puede despacharse a ${baseGrupoDestino}. Registra un Préstamo primero.`);
+            return;
+          }
+        }
+      }
+    } catch(err: any) {
+      console.error('Error validando OPs:', err);
+      // NO tragarse el error silenciosamente — avisar al usuario
+      setSaving(false);
+      alert('Error al validar la correspondencia de OPs: ' + (err.message || JSON.stringify(err)));
+      return;
+    }
+
     try {
       if (editingId) {
         await updateDespacho(editingId, headerData, details);
@@ -622,7 +684,7 @@ export default function DespachosPage() {
               <button className="btn btn-ghost" onClick={() => setShowHeaderForm(false)}><X size={20} /></button>
             </div>
             <DespachoHeaderForm formData={headerData} onChange={handleHeaderChange} />
-            <DetalleOPList initialDetails={details} onChange={handleDetailsChange} />
+            <DetalleOPList initialDetails={details} onChange={handleDetailsChange} clienteId={headerData.cliente_id} />
             <div className="modal-actions flex justify-end gap-2 mt-4">
               <button className="btn btn-outline" onClick={() => setShowHeaderForm(false)} disabled={saving}>Cancelar</button>
               <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>

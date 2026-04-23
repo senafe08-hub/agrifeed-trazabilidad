@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { fetchProgramacion, fetchDespachosAcumulados, fetchProduccionAcumulada } from '../lib/supabase';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, AlertTriangle } from 'lucide-react';
 
 interface DetalleRow {
   id?: number;
@@ -17,13 +17,15 @@ interface DetalleRow {
 interface DetalleOPListProps {
   initialDetails?: DetalleRow[];
   onChange: (details: DetalleRow[]) => void;
+  clienteId?: number | string; // Para validación cruzada de grupo
 }
 
-const DetalleOPList: React.FC<DetalleOPListProps> = ({ initialDetails = [], onChange }) => {
+const DetalleOPList: React.FC<DetalleOPListProps> = ({ initialDetails = [], onChange, clienteId }) => {
   const [details, setDetails] = useState<DetalleRow[]>(initialDetails);
   const [programacion, setProgramacion] = useState<any[]>([]);
   const [acumulados, setAcumulados] = useState<Record<number, number>>({});
   const [produccionAcumulados, setProduccionAcumulados] = useState<Record<number, number>>({});
+  const [opWarnings, setOpWarnings] = useState<Record<string, string>>({});
 
   // Load OP data and accumulated dispatch data once
   useEffect(() => {
@@ -94,6 +96,32 @@ const DetalleOPList: React.FC<DetalleOPListProps> = ({ initialDetails = [], onCh
         }
       }
 
+      // Cross-group validation (early warning)
+      if (field === 'op' && row.op && clienteId) {
+        (async () => {
+          try {
+            const prog = programacion.find(p => String(p.op) === String(row.op));
+            if (!prog) return;
+            const ventasApi = await import('../lib/api/ventas');
+            await ventasApi.ensureCaches();
+            const clienteGrupoMap = await ventasApi.getClienteGrupoMap();
+            const grupoDestino = (ventasApi.resolveGrupo(Number(clienteId), clienteGrupoMap) || '').split('|')[0].trim();
+            const grupoOrigen = (ventasApi.resolveGrupo(prog.cliente_id, clienteGrupoMap, prog.observaciones) || '').split('|')[0].trim();
+            
+            if (grupoOrigen && grupoDestino && grupoOrigen !== grupoDestino) {
+              const ambosCerdos = grupoOrigen.startsWith('CERDOS VARIOS') && grupoDestino.startsWith('CERDOS VARIOS');
+              if (!ambosCerdos) {
+                setOpWarnings(prev => ({ ...prev, [row.op]: `⚠️ Esta OP es de "${grupoOrigen}" pero el despacho va a "${grupoDestino}". Necesitas un Préstamo registrado.` }));
+              } else {
+                setOpWarnings(prev => { const n = {...prev}; delete n[row.op]; return n; });
+              }
+            } else {
+              setOpWarnings(prev => { const n = {...prev}; delete n[row.op]; return n; });
+            }
+          } catch(e) { console.warn('Validation error:', e); }
+        })();
+      }
+
       // Quantity limit validation
       if (field === 'cantidad_a_despachar') {
         const max = (row.cantidad_entregada || 0) - (row.cantidad_despachada_acumulada || 0);
@@ -127,6 +155,7 @@ const DetalleOPList: React.FC<DetalleOPListProps> = ({ initialDetails = [], onCh
                 value={row.op}
                 onChange={e => handleChange(idx, 'op', e.target.value)}
                 required
+                style={opWarnings[row.op] ? { borderColor: '#e65100', boxShadow: '0 0 0 2px rgba(230,81,0,0.2)' } : {}}
               >
                 <option value="">Seleccionar OP...</option>
                 {programacion.map(p => (
@@ -135,6 +164,15 @@ const DetalleOPList: React.FC<DetalleOPListProps> = ({ initialDetails = [], onCh
                   </option>
                 ))}
               </select>
+              {opWarnings[row.op] && (
+                <div style={{ 
+                  background: '#fff3e0', border: '1px solid #ffb74d', borderRadius: 6, 
+                  padding: '6px 10px', marginTop: 6, fontSize: '0.78rem', color: '#e65100',
+                  display: 'flex', alignItems: 'center', gap: 6, gridColumn: 'span 4'
+                }}>
+                  <AlertTriangle size={14} /> {opWarnings[row.op]}
+                </div>
+              )}
             </div>
             {/* Alimento (read‑only) */}
             <div className="form-group">

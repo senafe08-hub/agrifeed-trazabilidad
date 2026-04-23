@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { Navigate } from 'react-router-dom';
-import { Plus, Search, Edit2, Trash2, ChevronLeft, ChevronRight, Factory, RefreshCw, ChevronDown, CalendarDays } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, ChevronLeft, ChevronRight, Factory, RefreshCw, ChevronDown, ChevronUp, CalendarDays } from 'lucide-react';
 import { usePermissions } from '../lib/permissions';
 import supabase from '../lib/supabase';
 import SolicitudModal from '../components/SolicitudModal';
@@ -34,6 +34,7 @@ export default function VentasPage() {
   const [casas, setCasas] = useState<CasaFormuladora[]>([]);
   const [clientes, setClientes] = useState<any[]>([]);
   const [alimentos, setAlimentos] = useState<any[]>([]);
+  const [materiasPrimas, setMateriasPrimas] = useState<any[]>([]);
 
   // Tab 1 - Solicitudes
   const [solicitudes, setSolicitudes] = useState<VentaSolicitud[]>([]);
@@ -53,6 +54,8 @@ export default function VentasPage() {
   const [mrpData, setMrpData] = useState<MRPRow[]>([]);
   const [propuestaModal, setPropuestaModal] = useState<MRPRow | null>(null);
   const [bachesCustom, setBachesCustom] = useState<number>(0);
+  const [sacosCustom, setSacosCustom] = useState<number | ''>('');
+  const [expandedMrpRow, setExpandedMrpRow] = useState<number | null>(null);
 
   useEffect(() => { loadMaestros(); }, []);
   useEffect(() => { if (canView) loadTabData(); }, [activeTab, semana, anio]);
@@ -60,14 +63,16 @@ export default function VentasPage() {
   if (!canView) return <Navigate to="/" replace />;
 
   async function loadMaestros() {
-    const [c, { data: cl }, { data: al }] = await Promise.all([
+    const results = await Promise.all([
       fetchCasasFormuladoras(),
       supabase.from('maestro_clientes').select('codigo_sap, nombre').order('nombre'),
       supabase.from('maestro_alimentos').select('codigo_sap, descripcion').order('descripcion'),
+      supabase.from('inventario_materiales').select('id, codigo, nombre').order('nombre'),
     ]);
-    setCasas(c);
-    setClientes(cl || []);
-    setAlimentos(al || []);
+    setCasas(results[0]);
+    setClientes(results[1].data || []);
+    setAlimentos(results[2].data || []);
+    setMateriasPrimas(results[3].data || []);
   }
 
   async function loadTabData() {
@@ -199,25 +204,25 @@ export default function VentasPage() {
           {showForm && (
             <SolicitudModal
               initialData={solicitudModalData}
-              clientes={clientes} alimentos={alimentos} casas={casas}
+              clientes={clientes} alimentos={alimentos} casas={casas} materiasPrimas={materiasPrimas}
               onClose={() => setShowForm(false)}
               onSaved={() => { setShowForm(false); loadTabData(); }}
             />
           )}
 
           {/* Barra de búsqueda premium */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, padding: '14px 20px', background: 'white', borderRadius: 10, border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, padding: '14px 20px', background: 'var(--bg-surface)', borderRadius: 10, border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <Search size={16} style={{ position: 'absolute', left: 12, color: '#94a3b8' }} />
+              <Search size={16} style={{ position: 'absolute', left: 12, color: 'var(--text-muted)' }} />
               <input type="text" className="form-input" placeholder="Buscar cliente, referencia..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ paddingLeft: 38, width: 320, border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.88rem', height: 38, background: '#f8fafc' }} />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
-                <span style={{ fontSize: '0.85rem', color: '#64748b' }}>{filteredSol.length} registros</span>
+                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{filteredSol.length} registros</span>
               </div>
               <div style={{ height: 20, width: 1, background: '#e2e8f0' }} />
-              <span style={{ fontWeight: 700, fontSize: '0.95rem', color: '#1e293b' }}>{totalBultosSemana.toLocaleString()} bultos</span>
+              <span style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{totalBultosSemana.toLocaleString()} bultos</span>
             </div>
           </div>
 
@@ -269,7 +274,7 @@ export default function VentasPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <ChevronDown size={18} style={{ transform: isExpanded ? 'rotate(0deg)' : 'rotate(-90deg)', transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)', color: colors.accent, flexShrink: 0 }} />
                       <span style={{ fontWeight: 800, fontSize: '1rem', color: colors.text }}>{dia}</span>
-                      <span style={{ fontSize: '0.82rem', color: '#94a3b8', fontWeight: 500 }}>{primeraSol?.fecha}</span>
+                      <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: 500 }}>{primeraSol?.fecha}</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ padding: '3px 12px', borderRadius: 20, background: colors.accent + '14', color: colors.text, fontWeight: 700, fontSize: '0.78rem' }}>
@@ -283,7 +288,7 @@ export default function VentasPage() {
 
                   {/* Day Body - Client Cards Grid */}
                   {isExpanded && (
-                    <div style={{ padding: 20, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: 16, alignItems: 'start', background: '#f1f5f9', borderTop: `1px solid ${colors.accent}22` }}>
+                    <div style={{ padding: 20, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: 16, alignItems: 'start', background: 'var(--bg-app)', borderTop: `1px solid ${colors.accent}22` }}>
                       {clientesEnDia.map(cid => {
                         const clienteId = Number(cid);
                         const items = groupedByDia[dia][clienteId];
@@ -291,12 +296,12 @@ export default function VentasPage() {
                         const nombreCliente = (items[0].maestro_clientes as any)?.nombre || `Cliente ${clienteId}`;
 
                         return (
-                          <div key={clienteId} style={{ borderRadius: 10, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: 'white', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
+                          <div key={clienteId} style={{ borderRadius: 10, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: 'var(--bg-surface)', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
                             {/* Client Header */}
                             <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', background: 'linear-gradient(135deg, #fafffe 0%, #f0fdf4 100%)', borderLeft: '3px solid #22c55e' }}>
                               <div>
-                                <div style={{ fontWeight: 700, color: '#1e293b', fontSize: '0.85rem' }}>{nombreCliente.toUpperCase()}</div>
-                                <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: 2 }}>{items.length} {items.length === 1 ? 'referencia' : 'referencias'}</div>
+                                <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.85rem' }}>{nombreCliente.toUpperCase()}</div>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>{items.length} {items.length === 1 ? 'referencia' : 'referencias'}</div>
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <span style={{ fontWeight: 800, fontSize: '0.95rem', color: '#166534', background: '#dcfce7', padding: '4px 12px', borderRadius: 20 }}>
@@ -304,7 +309,7 @@ export default function VentasPage() {
                                 </span>
                                 {canEdit && (
                                   <>
-                                    <button onClick={(e) => { e.stopPropagation(); handleOpenForm(primeraSol.fecha, clienteId, items); }} style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '5px 7px', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center' }} title="Editar"><Edit2 size={14} /></button>
+                                    <button onClick={(e) => { e.stopPropagation(); handleOpenForm(primeraSol.fecha, clienteId, items); }} style={{ background: 'none', border: '1px solid #e2e8f0', borderRadius: 6, padding: '5px 7px', cursor: 'pointer', color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }} title="Editar"><Edit2 size={14} /></button>
                                     <button onClick={(e) => { e.stopPropagation(); setReprogramarData({ fecha: primeraSol.fecha, cliente_id: clienteId, nombreCliente: nombreCliente.toUpperCase() }); setNuevaFecha(''); }} style={{ background: 'none', border: '1px solid #bfdbfe', borderRadius: 6, padding: '5px 7px', cursor: 'pointer', color: '#3b82f6', display: 'flex', alignItems: 'center' }} title="Reprogramar fecha"><CalendarDays size={14} /></button>
                                     <button onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ fecha: primeraSol.fecha, cliente_id: clienteId }); }} style={{ background: 'none', border: '1px solid #fecaca', borderRadius: 6, padding: '5px 7px', cursor: 'pointer', color: '#ef4444', display: 'flex', alignItems: 'center' }} title="Eliminar"><Trash2 size={14} /></button>
                                   </>
@@ -315,18 +320,18 @@ export default function VentasPage() {
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
                               <thead>
                                 <tr style={{ background: '#f8fafc' }}>
-                                  <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #f1f5f9' }}>Referencia</th>
-                                  <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #f1f5f9' }}>Cód.</th>
-                                  <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #f1f5f9' }}>Bultos</th>
-                                  <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: '#64748b', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #f1f5f9' }}>Casa</th>
+                                  <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700, color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #f1f5f9' }}>Referencia</th>
+                                  <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700, color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #f1f5f9' }}>Cód.</th>
+                                  <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #f1f5f9' }}>Bultos</th>
+                                  <th style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #f1f5f9' }}>Casa</th>
                                 </tr>
                               </thead>
                               <tbody>
                                 {items.map((s, idx) => (
                                   <tr key={s.id} style={{ borderBottom: idx < items.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                                    <td style={{ padding: '10px 12px', fontWeight: 600, color: '#1e293b' }}>{(s.maestro_alimentos as any)?.descripcion || '—'}</td>
-                                    <td style={{ padding: '10px 12px', color: '#64748b', fontFamily: 'monospace', fontSize: '0.82rem' }}>{s.codigo_sap}</td>
-                                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800, color: '#1e293b', fontSize: '0.9rem' }}>{s.cantidad}</td>
+                                    <td style={{ padding: '10px 12px', fontWeight: 600, color: 'var(--text-primary)' }}>{(s.maestro_alimentos as any)?.descripcion || '—'}</td>
+                                    <td style={{ padding: '10px 12px', color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '0.82rem' }}>{s.codigo_sap}</td>
+                                    <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800, color: 'var(--text-primary)', fontSize: '0.9rem' }}>{s.cantidad}</td>
                                     <td style={{ padding: '10px 12px', textAlign: 'right' }}>
                                       <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 6, fontSize: '0.72rem', fontWeight: 600, background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0' }}>{(s.casas_formuladoras as any)?.nombre}</span>
                                     </td>
@@ -345,9 +350,9 @@ export default function VentasPage() {
           })()}
 
           {!loading && filteredSol.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '60px 40px', color: '#94a3b8', background: 'white', borderRadius: 12, border: '1px solid #e2e8f0' }}>
+            <div style={{ textAlign: 'center', padding: '60px 40px', color: 'var(--text-muted)', background: 'var(--bg-surface)', borderRadius: 12, border: '1px solid #e2e8f0' }}>
               <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>📋</div>
-              <p style={{ fontSize: '1.05rem', fontWeight: 600, color: '#64748b', marginBottom: 4 }}>No hay solicitudes para esta semana</p>
+              <p style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>No hay solicitudes para esta semana</p>
               <p style={{ fontSize: '0.85rem' }}>Haz clic en <strong>"+ Programar Cargues"</strong> para comenzar.</p>
             </div>
           )}
@@ -427,32 +432,126 @@ export default function VentasPage() {
                   mrpData.map((r, i) => {
                     const badgeColor = r.estado === 'ALCANZA' ? '#22c55e' : r.estado === 'SIN STOCK' ? '#ef4444' : '#f59e0b';
                     return (
-                      <tr key={i} style={{ background: r.necesidadNeta > 0 ? 'rgba(239,68,68,0.04)' : undefined }}>
-                        <td style={{ fontWeight: 600, fontSize: '0.78rem' }}>{r.grupo}</td>
+                      <Fragment key={i}>
+                        <tr onClick={() => setExpandedMrpRow(expandedMrpRow === i ? null : i)} style={{ cursor: 'pointer', background: r.necesidadNeta > 0 ? 'rgba(239,68,68,0.04)' : undefined, transition: 'background 0.2s' }}>
+                          <td style={{ fontWeight: 600, fontSize: '0.78rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              {expandedMrpRow === i ? <ChevronUp size={14} style={{ color: 'var(--text-muted)' }} /> : <ChevronDown size={14} style={{ color: 'var(--text-muted)' }} />}
+                              <div>
+                                {r.grupo?.includes('|') ? (
+                                  <>
+                                    <div>{r.grupo.split('|')[0]}</div>
+                                    <div style={{ fontSize: '0.65rem', color: 'var(--color-primary)', marginTop: 4, lineHeight: 1.2, whiteSpace: 'normal', maxWidth: 180, padding: '2px 4px', background: 'rgba(46,125,50,0.1)', borderRadius: 4, display: 'inline-block' }}>
+                                      {r.grupo.split('|')[1]}
+                                    </div>
+                                  </>
+                                ) : (
+                                  r.grupo || 'Sin Grupo'
+                                )}
+                              </div>
+                            </div>
+                          </td>
                         <td>{r.referencia}</td>
                         <td><span className="badge badge-success" style={{ fontSize: '0.7rem' }}>{r.casa}</span></td>
                         {r.diasDemanda.map((v, j) => <td key={j} style={{ textAlign: 'center', color: v > 0 ? '#1e293b' : '#e2e8f0', fontWeight: v > 0 ? 600 : 400 }}>{v || '·'}</td>)}
                         <td style={{ textAlign: 'right', fontWeight: 700 }}>{r.demandaActual}</td>
-                        <td style={{ textAlign: 'right', color: '#64748b' }}>{r.demandaProxima}</td>
+                        <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{r.demandaProxima}</td>
                         <td style={{ textAlign: 'right' }}>{r.inventarioFisico}</td>
                         <td style={{ textAlign: 'right', color: r.opPendientes > 0 ? '#2563eb' : '#94a3b8' }}>{r.opPendientes}</td>
                         <td style={{ textAlign: 'right', fontWeight: 700, color: r.saldoProyectado < 0 ? '#ef4444' : '#22c55e' }}>{r.saldoProyectado}</td>
                         <td style={{ textAlign: 'center' }}>
-                          <span style={{ display: 'inline-block', padding: '3px 8px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, background: badgeColor + '18', color: badgeColor, whiteSpace: 'nowrap' }}>
-                            {r.estado}
-                          </span>
+                          <span style={{ display: 'inline-block', padding: '3px 8px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, background: badgeColor + '18', color: badgeColor, whiteSpace: 'nowrap' }}>{r.estado}</span>
                         </td>
                         <td style={{ textAlign: 'right', fontWeight: 800, color: r.necesidadNeta > 0 ? '#ef4444' : '#22c55e' }}>{r.necesidadNeta || '—'}</td>
                         {canEdit && (
-                          <td>
-                            {r.necesidadNeta > 0 && r.sacosPorBache && (
-                              <button className="btn btn-primary btn-sm" style={{ fontSize: '0.7rem', padding: '4px 8px' }} onClick={() => { setPropuestaModal(r); setBachesCustom(r.bachesSugeridos || 1); }}>
+                          <td style={{ textAlign: 'center' }}>
+                            {r.propuestaPendiente ? (
+                              <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#d97706', background: '#fef3c7', padding: '4px 8px', borderRadius: 4, whiteSpace: 'nowrap', display: 'inline-block' }}>
+                                Esperando Aprob.
+                              </span>
+                            ) : r.necesidadNeta > 0 ? (
+                              <button className="btn btn-primary btn-sm" style={{ fontSize: '0.7rem', padding: '4px 8px' }} onClick={(e) => { 
+                                e.stopPropagation();
+                                setPropuestaModal(r); 
+                                const initialSacos = r.sacosPorBache || '';
+                                setSacosCustom(initialSacos);
+                                setBachesCustom(r.bachesSugeridos || (initialSacos ? Math.ceil(r.necesidadNeta / Number(initialSacos)) : 0)); 
+                              }}>
                                 <Factory size={12} /> Proponer
                               </button>
-                            )}
+                            ) : null}
                           </td>
                         )}
                       </tr>
+                      {expandedMrpRow === i && (
+                        <tr style={{ background: 'var(--bg-tertiary)' }}>
+                          <td colSpan={16} style={{ padding: '16px 24px', borderBottom: '2px solid var(--border-color)' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
+                              
+                              {/* OP Pendientes */}
+                              <div style={{ background: 'var(--bg-secondary)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                                <h4 style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: '12px', color: '#2563eb' }}>OP Pendientes ({r.desglose?.opsPendientes?.length || 0})</h4>
+                                {r.desglose?.opsPendientes && r.desglose.opsPendientes.length > 0 ? (
+                                  <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    {r.desglose.opsPendientes.map((op, idx) => (
+                                      <li key={idx} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>
+                                        <div>
+                                          <strong>Lote {op.lote}</strong>
+                                          {op.observaciones && <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{op.observaciones}</div>}
+                                        </div>
+                                        <div style={{ textAlign: 'right' }}>
+                                          <span style={{ color: '#2563eb', fontWeight: 600 }}>{op.pendiente} bt. pend.</span>
+                                          <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>de {op.programados} prog.</div>
+                                        </div>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Sin órdenes de producción pendientes.</div>
+                                )}
+                              </div>
+
+                              {/* Préstamos Pendientes */}
+                              <div style={{ background: 'var(--bg-secondary)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                                <h4 style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: '12px', color: '#d97706' }}>Préstamos Entregados ({r.desglose?.prestamos?.length || 0})</h4>
+                                {r.desglose?.prestamos && r.desglose.prestamos.length > 0 ? (
+                                  <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                    {r.desglose.prestamos.map((p, idx) => (
+                                      <li key={idx} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>
+                                        <span>Destino: <strong>{p.destino}</strong></span>
+                                        <span style={{ color: '#d97706', fontWeight: 600 }}>-{p.pendiente} bt.</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                ) : (
+                                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Sin préstamos por compensar.</div>
+                                )}
+                              </div>
+
+                              {/* Resumen de Movimientos */}
+                              <div style={{ background: 'var(--bg-secondary)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                                <h4 style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: '12px', color: '#1e293b' }}>Resumen Semanal</h4>
+                                <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                  <li style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <span>Inventario Físico (PT)</span>
+                                    <span style={{ fontWeight: 600 }}>{r.inventarioFisico} bt.</span>
+                                  </li>
+                                  <li style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <span>Despachos Realizados</span>
+                                    <span style={{ fontWeight: 600, color: '#22c55e' }}>{r.desglose?.despachado || 0} bt.</span>
+                                  </li>
+                                  <li style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <span>Reprocesos (Consumo)</span>
+                                    <span style={{ fontWeight: 600, color: '#ef4444' }}>-{r.desglose?.reprocesos || 0} bt.</span>
+                                  </li>
+                                </ul>
+                              </div>
+
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
                     );
                   })}
                 </tbody>
@@ -467,7 +566,7 @@ export default function VentasPage() {
         <div className="modal-overlay" style={{ zIndex: 9999 }}>
           <div className="card" style={{ width: 520, padding: 24 }}>
             <h3 style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}><Factory size={20} /> Proponer Orden de Producción</h3>
-            <div style={{ background: '#f8fafc', padding: 16, borderRadius: 10, marginBottom: 16, fontSize: '0.85rem' }}>
+            <div style={{ background: 'var(--bg-surface-hover)', padding: 16, borderRadius: 10, marginBottom: 16, fontSize: '0.85rem' }}>
               <div><strong>Grupo:</strong> {propuestaModal.grupo}</div>
               <div><strong>Referencia:</strong> {propuestaModal.referencia}</div>
               <div><strong>Casa:</strong> {propuestaModal.casa}</div>
@@ -484,15 +583,31 @@ export default function VentasPage() {
               <div style={{ fontSize: '1rem', fontWeight: 800, color: '#ef4444' }}>Necesidad Neta: {propuestaModal.necesidadNeta} bultos</div>
             </div>
             <div className="form-group">
-              <label className="form-label">Baches a producir ({propuestaModal.sacosPorBache} bt/bache)</label>
+              <label className="form-label">Sacos por bache (Fórmula)</label>
+              <input type="number" className="form-input" required min={1} value={sacosCustom} onChange={e => {
+                const newSacos = e.target.value ? Number(e.target.value) : '';
+                setSacosCustom(newSacos);
+                if (newSacos && propuestaModal.necesidadNeta > 0) {
+                  setBachesCustom(Math.ceil(propuestaModal.necesidadNeta / Number(newSacos)));
+                } else {
+                  setBachesCustom(0);
+                }
+              }} />
+            </div>
+            <div className="form-group">
+              <label className="form-label">Baches a producir</label>
               <input type="number" className="form-input" min={1} value={bachesCustom} onChange={e => setBachesCustom(Number(e.target.value))} />
-              <small style={{ color: 'var(--text-muted)' }}>Bultos resultantes: <strong>{bachesCustom * (propuestaModal.sacosPorBache || 50)}</strong></small>
+              <small style={{ color: 'var(--text-muted)' }}>Bultos resultantes: <strong>{bachesCustom * (Number(sacosCustom) || 0)}</strong></small>
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
               <button className="btn btn-outline" onClick={() => setPropuestaModal(null)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={async () => {
+              <button className="btn btn-primary" disabled={!sacosCustom || !bachesCustom} onClick={async () => {
+                if (!sacosCustom || !bachesCustom) {
+                  alert('Por favor, especifica tanto los sacos por bache como los baches a producir.');
+                  return;
+                }
                 try {
-                  await crearPropuestaOP(propuestaModal, semana, anio, bachesCustom);
+                  await crearPropuestaOP(propuestaModal, semana, anio, bachesCustom, Number(sacosCustom));
                   setPropuestaModal(null);
                   alert('Propuesta enviada a Producción.');
                   loadTabData();

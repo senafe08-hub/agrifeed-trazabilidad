@@ -9,6 +9,8 @@ interface DetalleRow {
   casa_formuladora_id: number | '';
   cantidad: number | '';
   observaciones: string;
+  propia: boolean;
+  medicamentoText: string;
 }
 
 interface Props {
@@ -20,34 +22,54 @@ interface Props {
   clientes: any[];
   alimentos: any[];
   casas: any[];
+  materiasPrimas?: any[];
   onClose: () => void;
   onSaved: () => void;
 }
 
-export default function SolicitudModal({ initialData, clientes, alimentos, casas, onClose, onSaved }: Props) {
+export default function SolicitudModal({ initialData, clientes, alimentos, casas, materiasPrimas = [], onClose, onSaved }: Props) {
   const [fecha, setFecha] = useState(initialData?.fecha || new Date().toISOString().split('T')[0]);
   const [clienteId, setClienteId] = useState<number | ''>(initialData?.cliente_id || '');
   const [detalles, setDetalles] = useState<DetalleRow[]>([]);
   const [saving, setSaving] = useState(false);
   const [focusedRow, setFocusedRow] = useState<number | null>(null);
+  const [focusedMedRow, setFocusedMedRow] = useState<number | null>(null);
 
   useEffect(() => {
     if (initialData && initialData.detalles.length > 0) {
-      setDetalles(initialData.detalles.map((d, i) => ({
-        id_temp: Date.now() + i,
-        codigo_sap: d.codigo_sap,
-        refText: d.maestro_alimentos?.descripcion || '',
-        casa_formuladora_id: d.casa_formuladora_id,
-        cantidad: d.cantidad,
-        observaciones: d.observaciones || ''
-      })));
+      setDetalles(initialData.detalles.map((d, i) => {
+        let obs = d.observaciones || '';
+        let propia = false;
+        let medicamentoText = '';
+        if (obs.startsWith('##{')) {
+          const match = obs.match(/^##(\{.*?\})##/);
+          if (match) {
+            try {
+              const meta = JSON.parse(match[1]);
+              propia = !!meta.propia;
+              medicamentoText = meta.med || '';
+              obs = obs.substring(match[0].length).trim();
+            } catch (e) {}
+          }
+        }
+        return {
+          id_temp: Date.now() + i,
+          codigo_sap: d.codigo_sap,
+          refText: d.maestro_alimentos?.descripcion || '',
+          casa_formuladora_id: d.casa_formuladora_id,
+          cantidad: d.cantidad,
+          observaciones: obs,
+          propia,
+          medicamentoText
+        };
+      }));
     } else {
-      setDetalles([{ id_temp: Date.now(), codigo_sap: '', refText: '', casa_formuladora_id: '', cantidad: '', observaciones: '' }]);
+      setDetalles([{ id_temp: Date.now(), codigo_sap: '', refText: '', casa_formuladora_id: '', cantidad: '', observaciones: '', propia: false, medicamentoText: '' }]);
     }
   }, [initialData]);
 
   function addRow() {
-    setDetalles([...detalles, { id_temp: Date.now(), codigo_sap: '', refText: '', casa_formuladora_id: '', cantidad: '', observaciones: '' }]);
+    setDetalles([...detalles, { id_temp: Date.now(), codigo_sap: '', refText: '', casa_formuladora_id: '', cantidad: '', observaciones: '', propia: false, medicamentoText: '' }]);
   }
 
   function removeRow(id_temp: number) {
@@ -83,12 +105,19 @@ export default function SolicitudModal({ initialData, clientes, alimentos, casas
 
     setSaving(true);
     try {
-      const payload = validDetalles.map(d => ({
-        codigo_sap: Number(d.codigo_sap),
-        casa_formuladora_id: Number(d.casa_formuladora_id),
-        cantidad: Number(d.cantidad),
-        observaciones: d.observaciones
-      }));
+      const payload = validDetalles.map(d => {
+        let finalObs = d.observaciones.trim();
+        if (d.propia || d.medicamentoText) {
+          const meta = JSON.stringify({ propia: !!d.propia, med: d.medicamentoText.trim() });
+          finalObs = `##${meta}## ${finalObs}`.trim();
+        }
+        return {
+          codigo_sap: Number(d.codigo_sap),
+          casa_formuladora_id: Number(d.casa_formuladora_id),
+          cantidad: Number(d.cantidad),
+          observaciones: finalObs
+        };
+      });
       
       await saveSolicitudesBatch(fecha, Number(clienteId), payload);
       onSaved();
@@ -103,7 +132,7 @@ export default function SolicitudModal({ initialData, clientes, alimentos, casas
 
   return (
     <div className="modal-overlay" style={{ zIndex: 9999 }}>
-      <div className="card" style={{ width: 900, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+      <div className="card" style={{ width: 1200, maxWidth: '95vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
         
         {/* ENCABEZADO MODAL */}
         <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -154,11 +183,13 @@ export default function SolicitudModal({ initialData, clientes, alimentos, casas
             <table className="data-table">
               <thead>
                 <tr>
-                  <th style={{ width: '40%' }}>Alimento</th>
-                  <th style={{ width: '25%' }}>Casa Formuladora</th>
-                  <th style={{ width: '15%' }}>Cantidad</th>
+                  <th style={{ width: '30%' }}>Alimento</th>
+                  <th style={{ width: '15%' }}>Casa Formuladora</th>
+                  <th style={{ width: '8%', textAlign: 'center' }}>Propia?</th>
+                  <th style={{ width: '20%' }}>Medicamento</th>
+                  <th style={{ width: '10%' }}>Cantidad</th>
                   <th style={{ width: '15%' }}>Observaciones</th>
-                  <th style={{ width: 40 }}></th>
+                  <th style={{ width: 50 }}></th>
                 </tr>
               </thead>
               <tbody>
@@ -176,7 +207,7 @@ export default function SolicitudModal({ initialData, clientes, alimentos, casas
                           onBlur={() => setTimeout(() => setFocusedRow(null), 200)}
                         />
                         {focusedRow === d.id_temp && d.refText && (
-                          <div className="dropdown-menu show" style={{ position: 'absolute', top: '100%', left: 0, right: 0, maxHeight: 200, overflowY: 'auto', zIndex: 10 }}>
+                          <div className="dropdown-menu show" style={{ position: 'absolute', top: '100%', left: 0, minWidth: 400, maxHeight: 250, overflowY: 'auto', zIndex: 50, boxShadow: '0 10px 25px rgba(0,0,0,0.1)', borderRadius: 8, border: '1px solid var(--border-color)', backgroundColor: 'white' }}>
                             {alimentos
                               .filter((a: any) => `${a.codigo_sap} ${a.descripcion}`.toLowerCase().includes(d.refText.toLowerCase()))
                               .slice(0, 50)
@@ -184,11 +215,21 @@ export default function SolicitudModal({ initialData, clientes, alimentos, casas
                                 <button
                                   key={a.codigo_sap}
                                   type="button"
-                                  className="dropdown-item"
                                   onMouseDown={() => updateRow(d.id_temp, 'refText', a.descripcion)}
+                                  style={{
+                                    display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+                                    padding: '10px 16px', border: 'none', borderBottom: '1px solid rgba(0,0,0,0.05)',
+                                    textAlign: 'left', backgroundColor: 'transparent', cursor: 'pointer'
+                                  }}
+                                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(var(--color-primary-rgb), 0.05)'}
+                                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                                 >
-                                  <div style={{ fontWeight: 600 }}>{a.codigo_sap}</div>
-                                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{a.descripcion}</div>
+                                  <span style={{ fontWeight: 700, color: 'var(--color-primary)', minWidth: 60, fontSize: '0.9rem' }}>
+                                    {a.codigo_sap}
+                                  </span>
+                                  <span style={{ fontSize: '0.9rem', color: 'var(--text-color)', fontWeight: 500 }}>
+                                    {a.descripcion}
+                                  </span>
                                 </button>
                               ))}
                           </div>
@@ -204,6 +245,55 @@ export default function SolicitudModal({ initialData, clientes, alimentos, casas
                         <option value="">— Seleccionar —</option>
                         {casas.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                       </select>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={d.propia} 
+                        onChange={e => updateRow(d.id_temp, 'propia', e.target.checked)} 
+                        style={{ cursor: 'pointer', width: 16, height: 16 }}
+                      />
+                    </td>
+                    <td>
+                      <div className="search-box" style={{ position: 'relative' }}>
+                        <input
+                          type="text"
+                          className="form-input btn-sm"
+                          placeholder="Buscar medicamento..."
+                          value={d.medicamentoText}
+                          onChange={e => updateRow(d.id_temp, 'medicamentoText', e.target.value)}
+                          onFocus={() => setFocusedMedRow(d.id_temp)}
+                          onBlur={() => setTimeout(() => setFocusedMedRow(null), 200)}
+                        />
+                        {focusedMedRow === d.id_temp && d.medicamentoText && (
+                          <div className="dropdown-menu show" style={{ position: 'absolute', top: '100%', left: 0, minWidth: 350, maxHeight: 250, overflowY: 'auto', zIndex: 50, boxShadow: '0 10px 25px rgba(0,0,0,0.1)', borderRadius: 8, border: '1px solid var(--border-color)', backgroundColor: 'white' }}>
+                            {materiasPrimas
+                              .filter((m: any) => `${m.codigo} ${m.nombre}`.toLowerCase().includes(d.medicamentoText.toLowerCase()))
+                              .slice(0, 50)
+                              .map((m: any) => (
+                                <button
+                                  key={m.id}
+                                  type="button"
+                                  onMouseDown={() => updateRow(d.id_temp, 'medicamentoText', m.nombre)}
+                                  style={{
+                                    display: 'flex', alignItems: 'center', gap: 12, width: '100%',
+                                    padding: '10px 16px', border: 'none', borderBottom: '1px solid rgba(0,0,0,0.05)',
+                                    textAlign: 'left', backgroundColor: 'transparent', cursor: 'pointer'
+                                  }}
+                                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(var(--color-primary-rgb), 0.05)'}
+                                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                                >
+                                  <span style={{ fontWeight: 700, color: 'var(--color-primary)', minWidth: 70, fontSize: '0.9rem' }}>
+                                    {m.codigo}
+                                  </span>
+                                  <span style={{ fontSize: '0.9rem', color: 'var(--text-color)', fontWeight: 500 }}>
+                                    {m.nombre}
+                                  </span>
+                                </button>
+                              ))}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td>
                       <input 

@@ -98,6 +98,10 @@ walkthrough.md
 # Scripts de utilidad (solo para tu PC)
 limpiar_nube.ps1
 
+# Documentación (no necesaria para compilar)
+README.md
+GUIA_ACTUALIZACIONES.md
+
 # Carpeta de scratch (scripts temporales)
 scratch/
 

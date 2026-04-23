@@ -13,7 +13,9 @@ import {
   LogOut,
   ChevronRight,
   Key,
-  ShoppingCart
+  ShoppingCart,
+  Moon,
+  Sun
 } from 'lucide-react';
 import { ROLE_PERMISSIONS } from '../../lib/permissions';
 import supabase from '../../lib/supabase';
@@ -98,6 +100,18 @@ export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps)
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  // Tema oscuro
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+  const toggleTheme = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setTheme(t => t === 'light' ? 'dark' : 'light');
+  };
 
   const getInitials = (email: string) => {
     const name = email.split('@')[0];
@@ -140,15 +154,13 @@ export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps)
           width: 40,
           height: 40,
           borderRadius: 10,
-          background: 'linear-gradient(135deg, #66BB6A, #2E7D32)',
+          background: 'rgba(255, 255, 255, 0.95)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontWeight: 800,
-          fontSize: '1.2rem',
-          color: 'white',
+          padding: 4
         }}>
-          A
+          <img src="/logo-agrifeed.png" alt="Agrifeed Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
         </div>
         <div className="sidebar-brand-text">
           <span className="sidebar-brand-name">Agrifeed</span>
@@ -202,17 +214,27 @@ export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps)
         </div>
         <div style={{ display: 'flex', flexDirection: isCollapsed ? 'column' : 'row', gap: 8 }}>
           {!isCollapsed && (
-            <button
-              onClick={(e) => { e.stopPropagation(); setShowPasswordModal(true); }}
-              className="btn-icon"
-              style={{ color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
-              title="Cambiar contraseña"
-            >
-              <Key size={16} />
-            </button>
+            <>
+              <button
+                onClick={toggleTheme}
+                className="btn-icon"
+                style={{ color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
+                title="Cambiar tema"
+              >
+                {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowPasswordModal(true); }}
+                className="btn-icon"
+                style={{ color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
+                title="Cambiar contraseña"
+              >
+                <Key size={16} />
+              </button>
+            </>
           )}
           <button
-            onClick={(e) => { e.stopPropagation(); onLogout(); }}
+            onClick={(e) => { e.stopPropagation(); setShowLogoutModal(true); }}
             className="btn-icon btn-icon-logout"
             style={{ color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}
             title="Cerrar sesión"
@@ -278,6 +300,33 @@ export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps)
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutModal && (
+        <div className="modal-overlay" style={{ zIndex: 9999 }}>
+          <div className="modal" style={{ maxWidth: 400 }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Cerrar Sesión</h2>
+            </div>
+            <div className="modal-body">
+              <p style={{ color: 'var(--text-primary)', marginBottom: 20, fontSize: '0.95rem', fontWeight: 500 }}>
+                ¿Estás seguro de que deseas cerrar la sesión actual?
+              </p>
+              <p style={{ color: 'var(--text-muted)', marginBottom: 24, fontSize: '0.85rem' }}>
+                Tendrás que volver a ingresar tus credenciales para acceder al sistema.
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button type="button" className="btn btn-outline" onClick={() => setShowLogoutModal(false)}>
+                  Cancelar
+                </button>
+                <button type="button" className="btn btn-danger" onClick={() => { setShowLogoutModal(false); onLogout(); }}>
+                  Sí, Cerrar Sesión
+                </button>
+              </div>
             </div>
           </div>
         </div>

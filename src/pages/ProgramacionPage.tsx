@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Plus, Search, Edit2, Trash2, Download, Upload, ChevronLeft, ChevronRight, Calendar, FlaskConical, Link2, Zap, FileText } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Download, Upload, ChevronLeft, ChevronRight, Calendar, FlaskConical, Link2, Zap, FileText, Factory } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { usePermissions } from '../lib/permissions';
 import supabase from '../lib/supabase';
@@ -7,13 +7,14 @@ import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import FormulacionPanel from './FormulacionPage';
+import PropuestasOPPanel from '../components/PropuestasOPPanel';
 
 const PAGE_SIZE = 100;
 
 export default function ProgramacionPage() {
   const { canView, canEdit } = usePermissions('programacion');
   const { canEdit: canEditFormulas } = usePermissions('formulacion');
-  const [mainTab, setMainTab] = useState<'programacion' | 'catalogo' | 'asociar' | 'explosion'>('programacion');
+  const [mainTab, setMainTab] = useState<'propuestas' | 'programacion' | 'catalogo' | 'asociar' | 'explosion'>('propuestas');
 
   const [searchTerm, setSearchTerm] = useState('');
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
@@ -52,6 +53,10 @@ export default function ProgramacionPage() {
     }
   }, [canView]);
 
+  // Refresh production data when switching to the Registros tab
+  useEffect(() => {
+    if (canView && mainTab === 'programacion') fetchData();
+  }, [mainTab]);
   if (!canView) return <Navigate to="/" replace />;
 
   const fetchMaestros = async () => {
@@ -435,7 +440,8 @@ export default function ProgramacionPage() {
       {/* ── Main Tabs ── */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid var(--border-color)' }}>
         {[
-          { key: 'programacion', label: 'Programación', icon: Calendar },
+          { key: 'propuestas', label: 'Propuestas MRP', icon: Factory },
+          { key: 'programacion', label: 'Órdenes de Producción', icon: Calendar },
           { key: 'catalogo', label: 'Catálogo Fórmulas', icon: FlaskConical },
           { key: 'asociar', label: 'Asociar OP ↔ Fórmula', icon: Link2 },
           { key: 'explosion', label: 'Explosión Traslado', icon: Zap },
@@ -456,11 +462,12 @@ export default function ProgramacionPage() {
       </div>
 
       {/* ── Formulación tabs ── */}
-      {mainTab !== 'programacion' && (
+      {(mainTab === 'catalogo' || mainTab === 'asociar' || mainTab === 'explosion') && (
         <FormulacionPanel canEdit={canEditFormulas} tab={mainTab as 'catalogo' | 'asociar' | 'explosion'} />
       )}
 
-      {/* ── Programación tab ── */}
+      {/* ── Propuestas MRP Tab ── */}
+      {mainTab === 'propuestas' && <PropuestasOPPanel />}
       {mainTab === 'programacion' && (
       <>
       {/* Toolbar */}

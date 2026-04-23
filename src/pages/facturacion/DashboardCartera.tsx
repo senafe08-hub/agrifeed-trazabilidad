@@ -85,7 +85,7 @@ const COLORS_AGE: Record<string, string> = {
 };
 
 const tooltipStyle = {
-  background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10,
+  background: 'var(--bg-surface)', border: '1px solid #e2e8f0', borderRadius: 10,
   fontSize: '0.82rem', boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
 };
 

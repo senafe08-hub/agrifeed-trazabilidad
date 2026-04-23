@@ -22,20 +22,18 @@ export default function LoginPage({ onLogin, error, loading }: LoginPageProps) {
       <div className="login-card">
         <div className="login-logo">
           <div style={{
-            width: 80,
-            height: 80,
+            width: 90,
+            height: 90,
             borderRadius: 20,
-            background: 'linear-gradient(135deg, #66BB6A 0%, #2E7D32 50%, #1B5E20 100%)',
+            background: 'rgba(255, 255, 255, 0.95)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontWeight: 800,
-            fontSize: '2.5rem',
-            color: 'white',
             margin: '0 auto 12px',
-            boxShadow: '0 8px 32px rgba(27, 94, 32, 0.3)',
+            boxShadow: '0 8px 32px rgba(27, 94, 32, 0.1)',
+            padding: 8
           }}>
-            A
+            <img src="/logo-agrifeed.png" alt="Agrifeed Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
           <h1>Agrifeed</h1>
           <p>Sistema de Trazabilidad de Operaciones</p>
