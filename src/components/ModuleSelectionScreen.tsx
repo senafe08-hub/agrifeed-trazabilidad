@@ -43,7 +43,7 @@ export function ModuleSelectionScreen({ onSelect, userRole }: ModuleSelectionScr
   const roleData = ROLE_PERMISSIONS[userRole] || { canView: [] };
   const isRoleAdmin = userRole === 'Administrador';
 
-  const modules = allModules.filter(mod => isRoleAdmin || roleData.canView.includes(mod.id as any));
+  const modules = allModules.filter(mod => isRoleAdmin || roleData.canView.includes(mod.id as never));
 
   const handleSelect = (path: string) => {
     setIsExiting(true);
@@ -144,17 +144,6 @@ export function ModuleSelectionScreen({ onSelect, userRole }: ModuleSelectionScr
           ))}
         </div>
       </div>
-      
-      <style>{`
-        @keyframes slideUpFade {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes fadeOut {
-          from { opacity: 1; transform: scale(1); }
-          to { opacity: 0; transform: scale(0.97); }
-        }
-      `}</style>
     </div>
   );
 }

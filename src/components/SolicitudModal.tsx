@@ -17,12 +17,18 @@ interface Props {
   initialData?: {
     fecha: string;
     cliente_id: number | '';
-    detalles: any[];
+    detalles: {
+      codigo_sap: number | string;
+      casa_formuladora_id: number | string;
+      cantidad: number | string;
+      observaciones?: string;
+      maestro_alimentos?: { descripcion?: string } | null;
+    }[];
   } | null;
-  clientes: any[];
-  alimentos: any[];
-  casas: any[];
-  materiasPrimas?: any[];
+  clientes: { codigo_sap: number | string; nombre: string }[];
+  alimentos: { codigo_sap: number | string; descripcion: string }[];
+  casas: { id: number | string; nombre: string }[];
+  materiasPrimas?: { id: number | string; codigo?: string; nombre: string }[];
   onClose: () => void;
   onSaved: () => void;
 }
@@ -54,10 +60,10 @@ export default function SolicitudModal({ initialData, clientes, alimentos, casas
         }
         return {
           id_temp: Date.now() + i,
-          codigo_sap: d.codigo_sap,
+          codigo_sap: Number(d.codigo_sap) || '',
           refText: d.maestro_alimentos?.descripcion || '',
-          casa_formuladora_id: d.casa_formuladora_id,
-          cantidad: d.cantidad,
+          casa_formuladora_id: Number(d.casa_formuladora_id) || '',
+          cantidad: Number(d.cantidad) || '',
           observaciones: obs,
           propia,
           medicamentoText
@@ -77,7 +83,7 @@ export default function SolicitudModal({ initialData, clientes, alimentos, casas
     setDetalles(detalles.filter(d => d.id_temp !== id_temp));
   }
 
-  function updateRow(id_temp: number, field: keyof DetalleRow, value: any) {
+  function updateRow(id_temp: number, field: keyof DetalleRow, value: string | number | boolean) {
     setDetalles(detalles.map(d => {
       if (d.id_temp !== id_temp) return d;
       
@@ -86,7 +92,7 @@ export default function SolicitudModal({ initialData, clientes, alimentos, casas
       // Auto-completar SAP si se cambia el texto de referencia
       if (field === 'refText') {
         const match = alimentos.find(a => a.descripcion === value);
-        newRow.codigo_sap = match ? match.codigo_sap : '';
+        newRow.codigo_sap = match ? Number(match.codigo_sap) : '';
       }
       
       return newRow;
@@ -121,8 +127,8 @@ export default function SolicitudModal({ initialData, clientes, alimentos, casas
       
       await saveSolicitudesBatch(fecha, Number(clienteId), payload);
       onSaved();
-    } catch (err: any) {
-      alert('Error: ' + err.message);
+    } catch (err: unknown) {
+      alert('Error: ' + (err as Error).message);
     } finally {
       setSaving(false);
     }
@@ -209,9 +215,9 @@ export default function SolicitudModal({ initialData, clientes, alimentos, casas
                         {focusedRow === d.id_temp && d.refText && (
                           <div className="dropdown-menu show" style={{ position: 'absolute', top: '100%', left: 0, minWidth: 400, maxHeight: 250, overflowY: 'auto', zIndex: 50, boxShadow: '0 10px 25px rgba(0,0,0,0.1)', borderRadius: 8, border: '1px solid var(--border-color)', backgroundColor: 'white' }}>
                             {alimentos
-                              .filter((a: any) => `${a.codigo_sap} ${a.descripcion}`.toLowerCase().includes(d.refText.toLowerCase()))
+                              .filter((a: { codigo_sap: number | string; descripcion: string }) => `${a.codigo_sap} ${a.descripcion}`.toLowerCase().includes(d.refText.toLowerCase()))
                               .slice(0, 50)
-                              .map((a: any) => (
+                              .map((a: { codigo_sap: number | string; descripcion: string }) => (
                                 <button
                                   key={a.codigo_sap}
                                   type="button"
@@ -268,9 +274,9 @@ export default function SolicitudModal({ initialData, clientes, alimentos, casas
                         {focusedMedRow === d.id_temp && d.medicamentoText && (
                           <div className="dropdown-menu show" style={{ position: 'absolute', top: '100%', left: 0, minWidth: 350, maxHeight: 250, overflowY: 'auto', zIndex: 50, boxShadow: '0 10px 25px rgba(0,0,0,0.1)', borderRadius: 8, border: '1px solid var(--border-color)', backgroundColor: 'white' }}>
                             {materiasPrimas
-                              .filter((m: any) => `${m.codigo} ${m.nombre}`.toLowerCase().includes(d.medicamentoText.toLowerCase()))
+                              .filter((m: { id: number | string; codigo?: string; nombre: string }) => `${m.codigo || ''} ${m.nombre}`.toLowerCase().includes(d.medicamentoText.toLowerCase()))
                               .slice(0, 50)
-                              .map((m: any) => (
+                              .map((m: { id: number | string; codigo?: string; nombre: string }) => (
                                 <button
                                   key={m.id}
                                   type="button"

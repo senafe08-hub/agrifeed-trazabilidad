@@ -31,23 +31,32 @@ const PERIOD_PRESETS = [
 
 
 export default function DashboardPage() {
-  const { canView } = usePermissions('dashboard');
+  const { canView, roleData } = usePermissions('dashboard');
   
   const [loading, setLoading] = useState(true);
-  const [kpis, setKpis] = useState<any>({
+  interface DashboardKPIs {
+    programados: number; producidos: number; despachados: number; facturados: number;
+    lotesPendientes: number; lotesCompletos: number; totalOps: number;
+    clientesActivos: number; bultos_danados_tot: number;
+  }
+  interface BottleneckRow { lote: string; cliente: string; alimento: string; prog?: number; ent?: number; desp?: number; pend?: number; fact?: number; st?: string; bultos?: number; }
+  interface SupervisorRow { nombre: string; promedio: number; turnos: number; }
+  interface MermaRow { lote: string; cliente: string; alimento: string; prog: number; ent: number; variacion: number; porcentaje: number; }
+  
+  const [kpis, setKpis] = useState<DashboardKPIs>({
     programados: 0, producidos: 0, despachados: 0, facturados: 0,
     lotesPendientes: 0, lotesCompletos: 0, totalOps: 0,
     clientesActivos: 0, bultos_danados_tot: 0,
   });
-  const [radialData, setRadialData] = useState<any[]>([]);
-  const [barData, setBarData] = useState<any[]>([]);
-  const [pieData, setPieData] = useState<any[]>([]);
-  const [areaData, setAreaData] = useState<any[]>([]);
-  const [clienteData, setClienteData] = useState<any[]>([]);
-  const [supervisorData, setSupervisorData] = useState<any[]>([]);
-  const [dosificadorData, setDosificadorData] = useState<any[]>([]);
-  const [bottlenecks, setBottlenecks] = useState<any>({ prod: [], desp: [], fact: [], totals: { retenidos: 0, sinFacturar: 0 } });
-  const [mermasData, setMermasData] = useState<any[]>([]);
+  const [radialData, setRadialData] = useState<{ name: string; uv: number; fill: string; }[]>([]);
+  const [barData, setBarData] = useState<{ fecha: string; bultos: number; }[]>([]);
+  const [pieData, setPieData] = useState<{ name: string; value: number; color: string; }[]>([]);
+  const [areaData, setAreaData] = useState<{ semana: string; Programado: number; Producido: number; Despachado: number; Facturado: number; }[]>([]);
+  const [clienteData, setClienteData] = useState<{ name: string; bultos: number; }[]>([]);
+  const [supervisorData, setSupervisorData] = useState<SupervisorRow[]>([]);
+  const [dosificadorData, setDosificadorData] = useState<SupervisorRow[]>([]);
+  const [bottlenecks, setBottlenecks] = useState<{ prod: BottleneckRow[]; desp: BottleneckRow[]; fact: BottleneckRow[]; totals: { retenidos: number; sinFacturar: number } }>({ prod: [], desp: [], fact: [], totals: { retenidos: 0, sinFacturar: 0 } });
+  const [mermasData, setMermasData] = useState<MermaRow[]>([]);
   const [mermasTotals, setMermasTotals] = useState({ prog: 0, ent: 0, variacion: 0 });
   const [activePreset, setActivePreset] = useState('Últimos 3 meses');
 
@@ -98,7 +107,8 @@ export default function DashboardPage() {
     const facturadoMap = new Map<number, number>();
     if (detData) {
       for (const d of detData) {
-        if ((d.pedidos as any)?.estado === 'FACTURADO') {
+        const pedidoObj = Array.isArray(d.pedidos) ? d.pedidos[0] : d.pedidos;
+        if ((pedidoObj as { estado?: string })?.estado === 'FACTURADO') {
           facturadoMap.set(d.op, (facturadoMap.get(d.op) || 0) + (d.bultos_pedido || 0));
         }
       }
@@ -143,15 +153,15 @@ export default function DashboardPage() {
       const weeklyMap: Record<string, { prog: number; ent: number; desp: number; fact: number }> = {};
       const productionDailyMap: Record<string, number> = {};
       const clientesMap: Record<string, number> = {};
-      const bnProd: any[] = [];
-      const bnDesp: any[] = [];
-      const bnFact: any[] = [];
+      const bnProd: BottleneckRow[] = [];
+      const bnDesp: BottleneckRow[] = [];
+      const bnFact: BottleneckRow[] = [];
       let totalRetenidos = 0;
       let totalSinFacturar = 0;
       let mProg = 0;
       let mEnt = 0;
       const clientesSet = new Set<string>();
-      const mermasProcesadas: any[] = [];
+      const mermasProcesadas: MermaRow[] = [];
 
       for (const item of rawData) {
         const prog = item.bultos_programados || 0;
@@ -159,18 +169,18 @@ export default function DashboardPage() {
         let ent = 0, desp = 0, dan = 0, bachesEnt = 0;
 
         if (item.produccion && Array.isArray(item.produccion)) {
-          ent = item.produccion.reduce((acc: number, curr: any) => acc + (curr.bultos_entregados || 0), 0);
-          bachesEnt = item.produccion.reduce((acc: number, curr: any) => acc + (curr.baches_entregados || 0), 0);
-          item.produccion.forEach((p: any) => {
+          ent = item.produccion.reduce((acc: number, curr: Record<string, unknown>) => acc + (Number(curr.bultos_entregados) || 0), 0);
+          bachesEnt = item.produccion.reduce((acc: number, curr: Record<string, unknown>) => acc + (Number(curr.baches_entregados) || 0), 0);
+          item.produccion.forEach((p: Record<string, unknown>) => {
             if (p.fecha_produccion && p.bultos_entregados) {
-              productionDailyMap[p.fecha_produccion] = (productionDailyMap[p.fecha_produccion] || 0) + p.bultos_entregados;
+              productionDailyMap[p.fecha_produccion as string] = (productionDailyMap[p.fecha_produccion as string] || 0) + Number(p.bultos_entregados);
             }
           });
         }
 
         if (item.despachos && Array.isArray(item.despachos)) {
-          desp = item.despachos.reduce((acc: number, curr: any) => acc + (curr.bultos_despachados || 0), 0);
-          dan = item.despachos.reduce((acc: number, curr: any) => acc + (curr.bultos_danados || 0), 0);
+          desp = item.despachos.reduce((acc: number, curr: Record<string, unknown>) => acc + (Number(curr.bultos_despachados) || 0), 0);
+          dan = item.despachos.reduce((acc: number, curr: Record<string, unknown>) => acc + (Number(curr.bultos_danados) || 0), 0);
         }
 
         const fact = facturadoMap.get(item.lote) || 0;
@@ -183,9 +193,9 @@ export default function DashboardPage() {
           pendientes++;
         }
 
-        const alimentoCat = (item.maestro_alimentos as any)?.categoria || 'Otros';
-        const alimentoDesc = (item.maestro_alimentos as any)?.descripcion || 'Desconocido';
-        const clienteNombre = (item.maestro_clientes as any)?.nombre || 'Sin Cliente';
+        const alimentoCat = (item.maestro_alimentos as { categoria?: string })?.categoria || 'Otros';
+        const alimentoDesc = (item.maestro_alimentos as { descripcion?: string })?.descripcion || 'Desconocido';
+        const clienteNombre = (item.maestro_clientes as { nombre?: string })?.nombre || 'Sin Cliente';
         clientesSet.add(clienteNombre);
 
         categories[alimentoCat] = (categories[alimentoCat] || 0) + prog;
@@ -319,7 +329,8 @@ export default function DashboardPage() {
     fontSize: '0.82rem', boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
   };
 
-  const CustomPieLabel = ({ cx, cy, midAngle, outerRadius, percent, name }: any) => {
+  const CustomPieLabel = ({ cx, cy, midAngle, outerRadius, percent, name }: { cx?: number; cy?: number; midAngle?: number; outerRadius?: number; percent?: number; name?: string }) => {
+    if (cx === undefined || cy === undefined || midAngle === undefined || outerRadius === undefined || percent === undefined) return null;
     const RADIAN = Math.PI / 180;
     const radius = outerRadius + 25;
     const x = cx + radius * Math.cos(-midAngle * RADIAN);
@@ -332,7 +343,13 @@ export default function DashboardPage() {
     );
   };
 
-  if (!canView) return <Navigate to="/" replace />;
+  if (!canView) {
+    const firstModule = roleData?.canView?.find((m: string) => m !== 'dashboard');
+    if (firstModule) {
+      return <Navigate to={`/${firstModule}`} replace />;
+    }
+    return <div style={{padding: 40, textAlign: 'center', marginTop: 60}}>No tienes acceso a ningún módulo. Contacta al administrador.</div>;
+  }
 
   return (
     <div style={{ animation: 'fadeIn 0.5s ease', paddingBottom: 40 }}>
@@ -530,7 +547,7 @@ export default function DashboardPage() {
                   dataKey="uv"
                   cornerRadius={10}
                 />
-                <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => `${Number(v).toFixed(1)}%`} />
+                <Tooltip contentStyle={tooltipStyle} formatter={(v: unknown) => `${Number(v || 0).toFixed(1)}%`} />
                 <Legend iconSize={12} layout="horizontal" verticalAlign="bottom" wrapperStyle={{ fontSize: '0.78rem' }} />
               </RadialBarChart>
             </ResponsiveContainer>
@@ -546,7 +563,7 @@ export default function DashboardPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
               <XAxis dataKey="fecha" fontSize={10} stroke="#94a3b8" angle={-35} textAnchor="end" height={50} tickLine={false} axisLine={false} />
               <YAxis fontSize={11} stroke="#94a3b8" tickLine={false} axisLine={false} />
-              <Tooltip contentStyle={tooltipStyle} formatter={(val: any) => Number(val).toLocaleString() + ' blts'} cursor={{ fill: 'rgba(34, 197, 94, 0.05)' }} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(val: unknown) => Number(val || 0).toLocaleString() + ' blts'} cursor={{ fill: 'rgba(34, 197, 94, 0.05)' }} />
               <Bar dataKey="bultos" fill="#22c55e" radius={[4, 4, 0, 0]} name="Entregado">
                 {barData.map((_entry, index) => (
                   <Cell key={`cell-${index}`} fill={index === barData.length - 1 ? '#15803d' : '#22c55e'} />
@@ -563,7 +580,7 @@ export default function DashboardPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
               <XAxis type="number" fontSize={11} stroke="#94a3b8" tickLine={false} axisLine={false} />
               <YAxis type="category" dataKey="name" fontSize={10} stroke="#94a3b8" width={160} tickLine={false} axisLine={false} />
-              <Tooltip contentStyle={tooltipStyle} formatter={(val: any) => Number(val).toLocaleString() + ' blts'} cursor={{ fill: 'rgba(59, 130, 246, 0.05)' }} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(val: unknown) => Number(val || 0).toLocaleString() + ' blts'} cursor={{ fill: 'rgba(59, 130, 246, 0.05)' }} />
               <Bar dataKey="bultos" fill="#3b82f6" radius={[0, 4, 4, 0]} name="Bultos Totales">
                 {clienteData.map((_entry, index) => (
                   <Cell key={`cell-${index}`} fill={`url(#colorDesp)`} />
@@ -590,7 +607,7 @@ export default function DashboardPage() {
                    <Cell key={i} fill={entry.color} />
                 ))}
               </Pie>
-              <Tooltip contentStyle={tooltipStyle} formatter={(val: any) => Number(val).toLocaleString() + ' blts'} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(val: unknown) => Number(val || 0).toLocaleString() + ' blts'} />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -665,7 +682,7 @@ export default function DashboardPage() {
             <div style={{ padding: 16, minHeight: 100 }}>
               {loading ? <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Buscando alertas...</div> :
                 bottlenecks.prod.length === 0 ? <div style={{ color: '#22c55e', fontSize: '0.85rem', fontWeight: 600 }}>Al día</div> :
-                bottlenecks.prod.map((b: any, i: number) => (
+                bottlenecks.prod.map((b: BottleneckRow, i: number) => (
                   <div key={i} style={{ padding: '8px 0', borderBottom: i < bottlenecks.prod.length - 1 ? '1px solid #f1f5f9' : 'none', fontSize: '0.82rem' }}>
                     <strong style={{ color: 'var(--text-primary)' }}>OP {b.lote}</strong> | <span style={{ color: '#ef4444', fontWeight: 600 }}>{b.st}</span>
                     <div style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.alimento}</div>
@@ -684,7 +701,7 @@ export default function DashboardPage() {
             <div style={{ padding: 16, minHeight: 100 }}>
               {loading ? <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Buscando alertas...</div> :
                 bottlenecks.desp.length === 0 ? <div style={{ color: '#22c55e', fontSize: '0.85rem', fontWeight: 600 }}>Al día</div> :
-                bottlenecks.desp.map((b: any, i: number) => (
+                bottlenecks.desp.map((b: BottleneckRow, i: number) => (
                   <div key={i} style={{ padding: '8px 0', borderBottom: i < bottlenecks.desp.length - 1 ? '1px solid #f1f5f9' : 'none', fontSize: '0.82rem' }}>
                     <strong style={{ color: 'var(--text-primary)' }}>OP {b.lote}</strong> | <span style={{ color: '#ef4444', fontWeight: 600 }}>{b.st}</span>
                     <div style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.alimento}</div>
@@ -703,7 +720,7 @@ export default function DashboardPage() {
             <div style={{ padding: 16, minHeight: 100 }}>
               {loading ? <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>Buscando alertas...</div> :
                 bottlenecks.fact.length === 0 ? <div style={{ color: '#22c55e', fontSize: '0.85rem', fontWeight: 600 }}>Al día</div> :
-                bottlenecks.fact.map((b: any, i: number) => (
+                bottlenecks.fact.map((b: BottleneckRow, i: number) => (
                   <div key={i} style={{ padding: '8px 0', borderBottom: i < bottlenecks.fact.length - 1 ? '1px solid #f1f5f9' : 'none', fontSize: '0.82rem' }}>
                     <strong style={{ color: 'var(--text-primary)' }}>OP {b.lote}</strong> | <span style={{ color: '#ef4444', fontWeight: 600 }}>{b.st}</span>
                     <div style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.alimento}</div>

@@ -1,40 +1,25 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useRef, Fragment } from 'react';
 import {
   Package, ArrowDownCircle, ArrowUpCircle, BookOpen,
   Search, Plus, Trash2, Download, Upload,
   AlertTriangle, CheckCircle, Clock, ChevronDown, ChevronUp, Calendar, Edit2
 } from 'lucide-react';
-import {
-  fetchInventarioMateriales,
-  upsertInventarioMaterial,
-  deleteInventarioMaterial,
-  fetchInventarioEntradas,
-  createInventarioEntrada,
-  deleteInventarioEntrada,
-  updateInventarioEntrada,
-  fetchInventarioTraslados,
-  createInventarioTrasladoBatch,
-  updateInventarioTraslado,
-  deleteInventarioTraslado,
-  fetchStockInicial,
-  upsertStockInicialBatch,
-  calcularInventarioConsolidado,
-  fetchHistoricoConsumo,
-  type InventarioConsolidado,
-} from '../lib/supabase';
-import { toast } from './Toast';
-import * as XLSX from 'xlsx';
+
+import type { 
+  InventarioMaterial, InventarioEntradaRow, InventarioTrasladoRow
+} from '../lib/types';
+import { useInventarioMP, MESES, ITEMS_PER_PAGE } from '../hooks/useInventarioMP';
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import '../styles/inventario.css';
 
-const MaterialSearchSelect = ({ value, onChange, materiales }: any) => {
+const MaterialSearchSelect = ({ value, onChange, materiales }: { value: string | number; onChange: (id: number) => void; materiales: InventarioMaterial[] }) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   
-  const m = materiales.find((x: any) => x.id === Number(value));
+  const m = materiales.find((x) => x.id === Number(value));
   const display = m ? `${m.codigo} — ${m.nombre}` : '';
 
-  const filtered = materiales.filter((x: any) => 
+  const filtered = materiales.filter((x) => 
     String(x.codigo).includes(search) || x.nombre.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -52,7 +37,7 @@ const MaterialSearchSelect = ({ value, onChange, materiales }: any) => {
       {open && (
         <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, backgroundColor: '#ffffff', border: '1px solid var(--border-color)', borderRadius: '6px', maxHeight: 220, overflowY: 'auto', zIndex: 9999, boxShadow: '0 4px 16px rgba(0,0,0,0.2)' }}>
           {filtered.length === 0 ? <div style={{ padding: '8px 12px', color: 'var(--text-muted)' }}>No hay resultados</div> :
-          filtered.map((x: any) => (
+          filtered.map((x) => (
             <div 
               key={x.id} 
               style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #f0f0f0', fontSize: '0.9rem', color: 'var(--text-primary)', backgroundColor: '#ffffff' }}
@@ -69,113 +54,32 @@ const MaterialSearchSelect = ({ value, onChange, materiales }: any) => {
   );
 };
 
-const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+// MESES is imported from useInventarioMP
 
 interface Props { canEdit: boolean; }
 
 export default function InventarioMPPanel({ canEdit }: Props) {
-  const [activeTab, setActiveTab] = useState<'panel' | 'entradas' | 'traslados' | 'catalogo' | 'stock_inicial'>('panel');
-  const now = new Date();
-  const [mes, setMes] = useState(now.getMonth() + 1);
-  const [anio, setAnio] = useState(now.getFullYear());
-
-  // ═══ Panel ═══
-  const [consolidado, setConsolidado] = useState<InventarioConsolidado[]>([]);
-  const [loadingPanel, setLoadingPanel] = useState(false);
-  const [panelSearch, setPanelSearch] = useState('');
-  const [expandedPanel, setExpandedPanel] = useState<Set<number>>(new Set());
-  const [loadingHistorico, setLoadingHistorico] = useState<Record<number, boolean>>({});
-  const [historicoData, setHistoricoData] = useState<Record<number, any[]>>({});
-  const [kpiFilter, setKpiFilter] = useState<'all' | 'critico' | 'alerta' | 'ok'>('all');
-
-  // ═══ Entradas ═══
-  const [entradas, setEntradas] = useState<any[]>([]);
-  const [loadingEntradas, setLoadingEntradas] = useState(false);
-  const [showEntradaForm, setShowEntradaForm] = useState(false);
-  const [entradaForm, setEntradaForm] = useState({ id: 0, fecha: now.toISOString().split('T')[0], material_id: '' as string | number, cantidad_kg: '' as string | number, observaciones: '' });
-  const [entradasSearch, setEntradasSearch] = useState('');
-  const [entradasPage, setEntradasPage] = useState(1);
-
-  // ═══ Traslados ═══
-  const [traslados, setTraslados] = useState<any[]>([]);
-  const [loadingTraslados, setLoadingTraslados] = useState(false);
-  const [showTrasladoForm, setShowTrasladoForm] = useState(false);
-  const [trasladoForm, setTrasladoForm] = useState({
-    id: 0, fecha: now.toISOString().split('T')[0], cliente_op: '', semana: '1', observaciones: '',
-    materiales: [{ material_id: '' as string | number, cantidad_kg: '' as string | number }]
-  });
-  const [trasladosSearch, setTrasladosSearch] = useState('');
-  const [trasladosPage, setTrasladosPage] = useState(1);
-
-  // ═══ Catálogo ═══
-  const [materiales, setMateriales] = useState<any[]>([]);
-  const [loadingMat, setLoadingMat] = useState(false);
-  const [showMatForm, setShowMatForm] = useState(false);
-  const [matForm, setMatForm] = useState({ id: 0, codigo: '', nombre: '', peso_kg: '', min_cobertura_semanas: '2' });
-  const [matSearch, setMatSearch] = useState('');
-  const [matPage, setMatPage] = useState(1);
-  
-  const ITEMS_PER_PAGE = 100;
-
-  // ═══ Stock Inicial ═══
-  const [stockRows, setStockRows] = useState<any[]>([]);
-  const [loadingStock, setLoadingStock] = useState(false);
-  const [stockSearch, setStockSearch] = useState('');
+  const {
+    activeTab, setActiveTab,
+    mes, setMes, anio, setAnio,
+    loadingPanel, panelSearch, setPanelSearch, expandedPanel, 
+    historicoData, loadingHistorico, lotesActivos, loadingLotes, kpiFilter, setKpiFilter,
+    panelKpis, filteredPanel, exportPanelExcel, handleExpandPanel, loadPanel,
+    loadingEntradas, showEntradaForm, setShowEntradaForm, entradaForm, setEntradaForm,
+    entradasSearch, setEntradasSearch, entradasPage, setEntradasPage,
+    filteredEntradas, handleSaveEntrada, handleDeleteEntrada,
+    loadingTraslados, showTrasladoForm, setShowTrasladoForm, trasladoForm, setTrasladoForm,
+    trasladosSearch, setTrasladosSearch, trasladosPage, setTrasladosPage,
+    expandedTraslados, handleExpandTraslado, trasladoLotesData, loadingTrasladoLotes,
+    filteredTraslados, handleSaveTraslado, handleDeleteTraslado,
+    materiales, loadingMat, showMatForm, setShowMatForm, matForm, setMatForm,
+    matSearch, setMatSearch, matPage, setMatPage,
+    filteredMat, handleSaveMat, handleDeleteMat, handleImportMateriales, exportMatExcel,
+    loadingStock, stockSearch, setStockSearch,
+    filteredStock, dirtyCount, handleStockChange, handleSaveStock, handleImportStock,
+  } = useInventarioMP();
 
   const fileRef = useRef<HTMLInputElement>(null);
-
-  // ── Load data on tab/month change ──
-  useEffect(() => { loadMateriales(); }, []);
-  useEffect(() => {
-    if (activeTab === 'panel') loadPanel();
-    if (activeTab === 'entradas') loadEntradas();
-    if (activeTab === 'traslados') loadTraslados();
-    if (activeTab === 'stock_inicial') loadStockInicial();
-  }, [activeTab, mes, anio]);
-
-  const loadMateriales = async () => {
-    setLoadingMat(true);
-    try { setMateriales(await fetchInventarioMateriales()); } catch (e: any) { toast.error(e.message); }
-    setLoadingMat(false);
-  };
-
-  const loadPanel = async () => {
-    setLoadingPanel(true);
-    try { setConsolidado(await calcularInventarioConsolidado(mes, anio)); } catch (e: any) { toast.error(e.message); }
-    setLoadingPanel(false);
-  };
-
-  const loadEntradas = async () => {
-    setLoadingEntradas(true);
-    try { setEntradas(await fetchInventarioEntradas(mes, anio)); } catch (e: any) { toast.error(e.message); }
-    setLoadingEntradas(false);
-  };
-
-  const loadTraslados = async () => {
-    setLoadingTraslados(true);
-    try { setTraslados(await fetchInventarioTraslados(mes, anio)); } catch (e: any) { toast.error(e.message); }
-    setLoadingTraslados(false);
-  };
-
-  const loadStockInicial = async () => {
-    setLoadingStock(true);
-    try {
-      const stock = await fetchStockInicial(mes, anio);
-      const mats = materiales.length ? materiales : await fetchInventarioMateriales();
-      if (!materiales.length) setMateriales(mats);
-      // Merge: all materials + their stock values
-      const stockMap: Record<number, any> = {};
-      for (const s of stock) stockMap[s.material_id] = s;
-      const merged = mats.map((m: any) => ({
-        material_id: m.id, codigo: m.codigo, nombre: m.nombre,
-        stock_kg: stockMap[m.id]?.stock_kg ?? '',
-        consumo_estimado_mes: stockMap[m.id]?.consumo_estimado_mes ?? '',
-        dirty: false,
-      }));
-      setStockRows(merged);
-    } catch (e: any) { toast.error(e.message); }
-    setLoadingStock(false);
-  };
 
   // ═══════════════════════════════════════════════════════
   //  MES SELECTOR
@@ -190,29 +94,6 @@ export default function InventarioMPPanel({ canEdit }: Props) {
     </div>
   );
 
-  // ═══════════════════════════════════════════════════════
-  //  TAB: PANEL CONSOLIDADO
-  // ═══════════════════════════════════════════════════════
-  const panelKpis = useMemo(() => {
-    const total = consolidado.length;
-    const criticos = consolidado.filter(r => r.semanas_cobertura !== null && r.semanas_cobertura < r.min_cobertura_semanas).length;
-    const alertas = consolidado.filter(r => r.semanas_cobertura !== null && r.semanas_cobertura >= r.min_cobertura_semanas && r.semanas_cobertura < r.min_cobertura_semanas + 2).length;
-    const ok = consolidado.filter(r => r.semanas_cobertura === null || r.semanas_cobertura >= r.min_cobertura_semanas + 2).length;
-    return { total, criticos, alertas, ok };
-  }, [consolidado]);
-
-  const filteredPanel = useMemo(() => {
-    let filtered = consolidado;
-    
-    if (kpiFilter === 'critico') filtered = filtered.filter(r => r.semanas_cobertura !== null && r.semanas_cobertura < r.min_cobertura_semanas);
-    else if (kpiFilter === 'alerta') filtered = filtered.filter(r => r.semanas_cobertura !== null && r.semanas_cobertura >= r.min_cobertura_semanas && r.semanas_cobertura < r.min_cobertura_semanas + 2);
-    else if (kpiFilter === 'ok') filtered = filtered.filter(r => r.semanas_cobertura === null || r.semanas_cobertura >= r.min_cobertura_semanas + 2);
-
-    if (!panelSearch) return filtered;
-    const s = panelSearch.toLowerCase();
-    return filtered.filter(r => r.nombre.toLowerCase().includes(s) || String(r.codigo).includes(s));
-  }, [consolidado, panelSearch, kpiFilter]);
-
   const renderCobertura = (val: number | null, minCob: number) => {
     if (val === null) return <span className="cobertura-badge sin-ref">— Sin ref.</span>;
     if (val < minCob) return <span className="cobertura-badge critico">🔴 {val.toFixed(1)} sem</span>;
@@ -225,63 +106,9 @@ export default function InventarioMPPanel({ canEdit }: Props) {
     return <span className="pendiente-badge ok">—</span>;
   };
 
-  const exportPanelExcel = async () => {
-    const rows = filteredPanel.map(r => ({
-      'Código': r.codigo,
-      'Material': r.nombre,
-      'Stock Inicial (kg)': r.stock_inicial,
-      'Entradas (kg)': r.entradas,
-      'Traslados (kg)': r.traslados,
-      'Stock Final (kg)': r.stock_final,
-      'Consumo Est. Mes (kg)': r.consumo_estimado_mes,
-      'Consumo Semanal (kg)': Number(r.consumo_semanal.toFixed(2)),
-      'Sem. Cobertura': r.semanas_cobertura !== null ? Number(r.semanas_cobertura.toFixed(2)) : '-',
-      'Pendiente Ingresar (kg)': r.pendiente_ingresar,
-      'Sem 1': r.consumo_semana[0],
-      'Sem 2': r.consumo_semana[1],
-      'Sem 3': r.consumo_semana[2],
-      'Sem 4': r.consumo_semana[3],
-      'Sem 5': r.consumo_semana[4],
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Inventario');
-    try {
-      if ('showSaveFilePicker' in window) {
-        const h = await (window as any).showSaveFilePicker({ suggestedName: `Inventario_${MESES[mes-1]}_${anio}.xlsx`, types: [{ description: 'Excel', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }] });
-        const w = await h.createWritable(); await w.write(XLSX.write(wb, { bookType: 'xlsx', type: 'array' })); await w.close();
-      } else { XLSX.writeFile(wb, `Inventario_${MESES[mes-1]}_${anio}.xlsx`); }
-    } catch (e: any) { if (e.name !== 'AbortError') toast.error(e.message); }
-  };
-
-  const handleExpandPanel = async (id: number) => {
-    setExpandedPanel(prev => {
-      const n = new Set(prev);
-      if (n.has(id)) {
-        n.delete(id);
-      } else {
-        n.add(id);
-        // Fetch data if not already loading or loaded
-        if (!historicoData[id] && !loadingHistorico[id]) {
-          setLoadingHistorico(p => ({ ...p, [id]: true }));
-          fetchHistoricoConsumo(id).then(dict => {
-            const keys = Object.keys(dict).sort();
-            const arr = keys.map(k => {
-              const [, m] = k.split('-');
-              return { name: MESES[Number(m)-1].substring(0,3), kg: dict[k] };
-            });
-            setHistoricoData(p => ({ ...p, [id]: arr }));
-          }).catch(e => {
-            toast.error("Error cargando historial: " + e.message);
-          }).finally(() => {
-            setLoadingHistorico(p => ({ ...p, [id]: false }));
-          });
-        }
-      }
-      return n;
-    });
-  };
-
+  // ═══════════════════════════════════════════════════════
+  //  TAB: PANEL CONSOLIDADO
+  // ═══════════════════════════════════════════════════════
   const renderPanelTab = () => (
     <>
       <div className="inv-kpi-strip">
@@ -296,7 +123,7 @@ export default function InventarioMPPanel({ canEdit }: Props) {
           <div className="search-box"><Search size={18} /><input type="text" className="form-input" placeholder="Buscar material..." value={panelSearch} onChange={e => setPanelSearch(e.target.value)} style={{ paddingLeft: 40, width: 260 }} /></div>
         </div>
         <div className="inv-toolbar-right">
-          <button className="btn btn-primary btn-sm" onClick={loadPanel} disabled={loadingPanel}>{loadingPanel ? '⏳' : '🔄'} Recalcular</button>
+          <button className="btn btn-primary btn-sm" onClick={() => loadPanel(true)} disabled={loadingPanel}>{loadingPanel ? '⏳' : '🔄'} Recalcular</button>
           <button className="btn btn-outline btn-sm" onClick={exportPanelExcel}><Download size={16} /> Excel</button>
         </div>
       </div>
@@ -310,6 +137,7 @@ export default function InventarioMPPanel({ canEdit }: Props) {
             <th style={{ textAlign: 'right' }}>Entradas</th>
             <th style={{ textAlign: 'right' }}>Traslados</th>
             <th style={{ textAlign: 'right', fontWeight: 700 }}>Stock Final</th>
+            <th style={{ textAlign: 'center' }}>Vencimiento</th>
             <th style={{ textAlign: 'right' }}>Est. Mes</th>
             <th style={{ textAlign: 'center' }}>Cobertura</th>
             <th style={{ textAlign: 'right' }}>Pend. Ingresar</th>
@@ -331,13 +159,31 @@ export default function InventarioMPPanel({ canEdit }: Props) {
                     <td style={{ textAlign: 'right', color: '#1565C0' }}>{r.entradas > 0 ? `+${r.entradas.toLocaleString('es-CO')}` : '—'}</td>
                     <td style={{ textAlign: 'right', color: '#C62828' }}>{r.traslados > 0 ? `−${r.traslados.toLocaleString('es-CO')}` : '—'}</td>
                     <td style={{ textAlign: 'right', fontWeight: 700, fontSize: '1.05rem' }}>{r.stock_final.toLocaleString('es-CO')}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      {r.proximo_vencimiento ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                          <span style={{ fontSize: '0.8rem', color: (r.dias_vencimiento ?? 0) < 0 ? '#D32F2F' : (r.dias_vencimiento ?? 0) <= 30 ? '#F57C00' : 'var(--text-muted)' }}>
+                            {r.proximo_vencimiento}
+                          </span>
+                          {(r.dias_vencimiento ?? 0) < 0 ? (
+                            <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#D32F2F', background: 'rgba(211,47,47,0.1)', padding: '2px 6px', borderRadius: 10 }}>Vencido</span>
+                          ) : (
+                            <span style={{ fontSize: '0.65rem', fontWeight: 600, color: (r.dias_vencimiento ?? 0) <= 30 ? '#F57C00' : '#4CAF50', background: (r.dias_vencimiento ?? 0) <= 30 ? 'rgba(245,124,0,0.1)' : 'rgba(76,175,80,0.1)', padding: '2px 6px', borderRadius: 10 }}>
+                              {(r.dias_vencimiento ?? 0) === 0 ? 'Hoy' : `Faltan ${r.dias_vencimiento} días`}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>—</span>
+                      )}
+                    </td>
                     <td style={{ textAlign: 'right' }}>{r.consumo_estimado_mes.toLocaleString('es-CO')}</td>
                     <td style={{ textAlign: 'center' }}>{renderCobertura(r.semanas_cobertura, r.min_cobertura_semanas)}</td>
                     <td style={{ textAlign: 'center' }}>{renderPendiente(r.pendiente_ingresar)}</td>
                   </tr>
                   {isExp && (
                     <tr key={`exp-${r.material_id}`} style={{ background: 'rgba(46,125,50,0.03)' }}>
-                      <td colSpan={10} style={{ padding: '16px 20px' }}>
+                      <td colSpan={11} style={{ padding: '16px 20px' }}>
                         <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
                           <div style={{ flex: '1 1 300px' }}>
                             <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>Consumo Semanal (Mes Actual)</div>
@@ -356,7 +202,7 @@ export default function InventarioMPPanel({ canEdit }: Props) {
                             </div>
                           </div>
                           
-                          <div style={{ flex: '1 1 400px', minWidth: '400px' }}>
+                          <div style={{ flex: '1 1 350px' }}>
                             <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>Tendencia Histórica OP (Últimos 6 meses)</div>
                             <div style={{ height: 160, background: '#fff', border: '1px solid var(--border-color)', borderRadius: 8, padding: '12px' }}>
                               {loadingHistorico[r.material_id] ? (
@@ -365,12 +211,53 @@ export default function InventarioMPPanel({ canEdit }: Props) {
                                 <ResponsiveContainer width="100%" height="100%">
                                   <BarChart data={historicoData[r.material_id]} margin={{ top: 5, right: 5, bottom: 5, left: -20 }}>
                                     <XAxis dataKey="name" tick={{ fontSize: 11 }} tickLine={false} axisLine={{ stroke: '#e0e0e0' }} />
-                                    <Tooltip cursor={{ fill: 'rgba(0,0,0,0.03)' }} contentStyle={{ fontSize: '0.8rem', borderRadius: '4px', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }} formatter={(val: any) => [`${Number(val).toLocaleString('es-CO')} kg`, 'Consumo']} labelStyle={{ color: 'var(--text-primary)', fontWeight: 600, marginBottom: 4 }} />
+                                    <Tooltip cursor={{ fill: 'rgba(0,0,0,0.03)' }} contentStyle={{ fontSize: '0.8rem', borderRadius: '4px', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }} formatter={(val: unknown) => [`${Number(val || 0).toLocaleString('es-CO')} kg`, 'Consumo']} labelStyle={{ color: 'var(--text-primary)', fontWeight: 600, marginBottom: 4 }} />
                                     <Bar dataKey="kg" fill="#43A047" radius={[4, 4, 0, 0]} barSize={32} />
                                   </BarChart>
                                 </ResponsiveContainer>
                               ) : (
-                                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', fontSize: '0.85rem', color: 'var(--text-muted)' }}>No hay suficientes traslados históricos registrados.</div>
+                                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', fontSize: '0.85rem', color: 'var(--text-muted)' }}>No hay suficientes traslados históricos.</div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div style={{ flex: '1 1 350px' }}>
+                            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>Lotes Activos y Vencimientos</div>
+                            <div style={{ height: 160, background: '#fff', border: '1px solid var(--border-color)', borderRadius: 8, padding: '0', overflowY: 'auto' }}>
+                              {loadingLotes[r.material_id] ? (
+                                <div style={{ padding: '12px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Cargando lotes...</div>
+                              ) : lotesActivos[r.material_id] && lotesActivos[r.material_id].length > 0 ? (
+                                <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
+                                  <thead style={{ background: '#f5f5f5', position: 'sticky', top: 0 }}>
+                                    <tr>
+                                      <th style={{ padding: '6px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)' }}>Lote</th>
+                                      <th style={{ padding: '6px 12px', textAlign: 'right', fontWeight: 600, color: 'var(--text-muted)' }}>Disp. (kg)</th>
+                                      <th style={{ padding: '6px 12px', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)' }}>Vence</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {lotesActivos[r.material_id]
+                                      .filter((lote: any) => lote.fecha_vencimiento && !lote.fecha_vencimiento.startsWith('2099'))
+                                      .map((lote: any) => {
+                                      let statusColor = 'var(--text-primary)';
+                                      let statusBg = 'transparent';
+                                      let displayVencimiento = lote.fecha_vencimiento;
+                                      const days = Math.ceil((new Date(lote.fecha_vencimiento).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
+                                      if (days < 0) { statusColor = '#D32F2F'; statusBg = 'rgba(211,47,47,0.08)'; } // Vencido
+                                      else if (days <= 30) { statusColor = '#F57C00'; statusBg = 'rgba(245,124,0,0.08)'; } // Por vencer
+                                      
+                                      return (
+                                        <tr key={lote.id} style={{ borderBottom: '1px solid var(--border-color)', background: statusBg }}>
+                                          <td style={{ padding: '6px 12px', fontWeight: 500 }}>{lote.codigo_lote}</td>
+                                          <td style={{ padding: '6px 12px', textAlign: 'right', fontWeight: 600 }}>{Number(lote.cantidad_disponible).toLocaleString('es-CO')}</td>
+                                          <td style={{ padding: '6px 12px', textAlign: 'center', color: statusColor }}>{displayVencimiento}</td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              ) : (
+                                <div style={{ padding: '12px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>No hay lotes activos.</div>
                               )}
                             </div>
                           </div>
@@ -391,39 +278,6 @@ export default function InventarioMPPanel({ canEdit }: Props) {
 
   // ═══════════════════════════════════════════════════════
   //  TAB: ENTRADAS
-  // ═══════════════════════════════════════════════════════
-  const handleSaveEntrada = async () => {
-    if (!entradaForm.material_id || !entradaForm.cantidad_kg) return toast.error('Material y cantidad son requeridos');
-    try {
-      if (entradaForm.id) {
-        await updateInventarioEntrada(entradaForm.id, {
-          fecha: entradaForm.fecha, material_id: Number(entradaForm.material_id),
-          cantidad_kg: Number(entradaForm.cantidad_kg), observaciones: entradaForm.observaciones || undefined,
-        });
-        toast.success('Entrada actualizada');
-      } else {
-        await createInventarioEntrada({
-          fecha: entradaForm.fecha, material_id: Number(entradaForm.material_id),
-          cantidad_kg: Number(entradaForm.cantidad_kg), observaciones: entradaForm.observaciones || undefined,
-        });
-        toast.success('Entrada registrada');
-      }
-      setShowEntradaForm(false);
-      setEntradaForm({ id: 0, fecha: now.toISOString().split('T')[0], material_id: '', cantidad_kg: '', observaciones: '' });
-      loadEntradas();
-    } catch (e: any) { toast.error(e.message); }
-  };
-
-  const handleDeleteEntrada = async (id: number) => {
-    try { await deleteInventarioEntrada(id); toast.success('Entrada eliminada'); loadEntradas(); } catch (e: any) { toast.error(e.message); }
-  };
-
-  const filteredEntradas = useMemo(() => {
-    if (!entradasSearch) return entradas;
-    const s = entradasSearch.toLowerCase();
-    return entradas.filter((e: any) => (e.inventario_materiales?.nombre || '').toLowerCase().includes(s) || String(e.inventario_materiales?.codigo || '').includes(s));
-  }, [entradas, entradasSearch]);
-
   const renderEntradasTab = () => (
     <>
       <div className="inv-toolbar">
@@ -438,30 +292,36 @@ export default function InventarioMPPanel({ canEdit }: Props) {
       {showEntradaForm && (
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="card-header"><span className="card-title">{entradaForm.id ? 'Editar Entrada' : 'Registrar Entrada'}</span><button className="btn btn-outline btn-sm" onClick={() => setShowEntradaForm(false)}>Cancelar</button></div>
-          <div className="card-body"><div className="grid-4" style={{ gap: 12 }}>
-            <div className="form-group"><label className="form-label">Fecha</label><input type="date" className="form-input" value={entradaForm.fecha} onChange={e => setEntradaForm(p => ({ ...p, fecha: e.target.value }))} /></div>
+          <div className="card-body"><div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
+            <div className="form-group"><label className="form-label">Fecha de Ingreso</label><input type="date" className="form-input" value={entradaForm.fecha} onChange={e => setEntradaForm(p => ({ ...p, fecha: e.target.value }))} /></div>
             <div className="form-group" style={{ zIndex: 101 }}><label className="form-label">Material</label>
               <MaterialSearchSelect value={entradaForm.material_id} onChange={(id: number) => setEntradaForm(p => ({ ...p, material_id: id }))} materiales={materiales} />
             </div>
             <div className="form-group"><label className="form-label">Cantidad (kg)</label><input type="number" className="form-input" value={entradaForm.cantidad_kg} onChange={e => setEntradaForm(p => ({ ...p, cantidad_kg: e.target.value }))} min="0" step="0.01" /></div>
+            <div className="form-group"><label className="form-label">Vencimiento <span style={{color:'red'}}>*</span></label><input type="date" className="form-input" value={entradaForm.fecha_vencimiento} onChange={e => setEntradaForm(p => ({ ...p, fecha_vencimiento: e.target.value }))} required /></div>
             <div className="form-group"><label className="form-label">Observaciones</label><input type="text" className="form-input" value={entradaForm.observaciones} onChange={e => setEntradaForm(p => ({ ...p, observaciones: e.target.value }))} /></div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}><button className="btn btn-primary" onClick={handleSaveEntrada}>Guardar Entrada</button></div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+            <button className="btn btn-primary" onClick={handleSaveEntrada} disabled={loadingEntradas}>
+              {loadingEntradas ? 'Guardando...' : 'Guardar Entrada'}
+            </button>
+          </div>
           </div>
         </div>
       )}
       <div className="card"><div className="card-body p-0"><div className="data-table-wrapper">
         <table className="data-table w-full">
-          <thead><tr><th>Fecha</th><th>Código</th><th>Material</th><th style={{ textAlign: 'right' }}>Cantidad (kg)</th><th style={{ textAlign: 'right' }}>Bultos</th><th>Observaciones</th>{canEdit && <th style={{ width: 60 }}>Acc.</th>}</tr></thead>
+          <thead><tr><th>Fecha Ingreso</th><th>Vencimiento</th><th>Código</th><th>Material</th><th style={{ textAlign: 'right' }}>Cantidad (kg)</th><th style={{ textAlign: 'right' }}>Bultos</th><th>Observaciones</th>{canEdit && <th style={{ width: 60 }}>Acc.</th>}</tr></thead>
           <tbody>
             {loadingEntradas ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: 32 }}>⏳ Cargando...</td></tr> :
             filteredEntradas.length === 0 ? <tr><td colSpan={7}><div className="empty-state"><ArrowDownCircle size={40} /><p>Sin entradas para {MESES[mes-1]} {anio}</p></div></td></tr> :
-            filteredEntradas.slice((entradasPage - 1) * ITEMS_PER_PAGE, entradasPage * ITEMS_PER_PAGE).map((e: any) => {
+            filteredEntradas.slice((entradasPage - 1) * ITEMS_PER_PAGE, entradasPage * ITEMS_PER_PAGE).map((e: InventarioEntradaRow) => {
               const pesoU = e.inventario_materiales?.peso_kg;
               const bultos = pesoU && pesoU > 0 ? (e.cantidad_kg / pesoU).toFixed(0) : '—';
               return (
                 <tr key={e.id}>
                   <td>{e.fecha}</td>
+                  <td style={{ color: 'var(--text-muted)' }}>{e.fecha_vencimiento || '—'}</td>
                   <td style={{ fontWeight: 600 }}>{e.inventario_materiales?.codigo}</td>
                   <td>{e.inventario_materiales?.nombre}</td>
                   <td style={{ textAlign: 'right', fontWeight: 600 }}>{Number(e.cantidad_kg).toLocaleString('es-CO')}</td>
@@ -470,7 +330,7 @@ export default function InventarioMPPanel({ canEdit }: Props) {
                   {canEdit && <td>
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
                       <button className="btn btn-outline btn-sm btn-icon" style={{ borderColor: 'var(--border-color)' }} title="Editar" onClick={() => {
-                        setEntradaForm({ id: e.id, fecha: e.fecha, material_id: e.material_id, cantidad_kg: e.cantidad_kg, observaciones: e.observaciones || '' });
+                        setEntradaForm({ id: e.id, fecha: e.fecha, material_id: e.material_id, cantidad_kg: e.cantidad_kg, observaciones: e.observaciones || '', fecha_vencimiento: e.fecha_vencimiento || '' });
                         setShowEntradaForm(true);
                       }}><Edit2 size={14} /></button>
                       <button className="btn btn-danger btn-sm btn-icon" title="Eliminar" onClick={() => handleDeleteEntrada(e.id)}><Trash2 size={14} /></button>
@@ -497,55 +357,6 @@ export default function InventarioMPPanel({ canEdit }: Props) {
 
   // ═══════════════════════════════════════════════════════
   //  TAB: SALIDAS / MERMAS (Anteriormente Traslados)
-  // ═══════════════════════════════════════════════════════
-  const handleSaveTraslado = async () => {
-    if (!trasladoForm.cliente_op) return toast.error('El Motivo / Referencia es requerido');
-    
-    const validMats = trasladoForm.materiales.filter(m => m.material_id && m.cantidad_kg);
-    if (validMats.length === 0) return toast.error('Debes agregar al menos un material con cantidad');
-
-    try {
-      if (trasladoForm.id) {
-        if (validMats.length > 1) return toast.error("Al editar un registro existente, no puedes añadir múltiples filas. Edita solo el material que estabas modificando, o bórralo y agrégalo de nuevo.");
-        await updateInventarioTraslado(trasladoForm.id, {
-          fecha: trasladoForm.fecha,
-          cliente_op: trasladoForm.cliente_op,
-          material_id: Number(validMats[0].material_id),
-          cantidad_kg: Number(validMats[0].cantidad_kg),
-          semana: Number(trasladoForm.semana),
-          observaciones: trasladoForm.observaciones || undefined
-        });
-        toast.success(`Ajuste actualizado`);
-      } else {
-        const payload = validMats.map(m => ({
-          fecha: trasladoForm.fecha,
-          cliente_op: trasladoForm.cliente_op,
-          material_id: Number(m.material_id),
-          cantidad_kg: Number(m.cantidad_kg),
-          semana: Number(trasladoForm.semana),
-          mes,
-          anio,
-          observaciones: trasladoForm.observaciones || undefined
-        }));
-        await createInventarioTrasladoBatch(payload);
-        toast.success(`${payload.length} salidas registradas`);
-      }
-      setShowTrasladoForm(false);
-      setTrasladoForm({ id: 0, fecha: now.toISOString().split('T')[0], cliente_op: '', semana: '1', observaciones: '', materiales: [{ material_id: '', cantidad_kg: '' }] });
-      loadTraslados();
-    } catch (e: any) { toast.error(e.message); }
-  };
-
-  const handleDeleteTraslado = async (id: number) => {
-    try { await deleteInventarioTraslado(id); toast.success('Registro eliminado'); loadTraslados(); } catch (e: any) { toast.error(e.message); }
-  };
-
-  const filteredTraslados = useMemo(() => {
-    if (!trasladosSearch) return traslados;
-    const s = trasladosSearch.toLowerCase();
-    return traslados.filter((t: any) => (t.inventario_materiales?.nombre || '').toLowerCase().includes(s) || (t.cliente_op || '').toLowerCase().includes(s));
-  }, [traslados, trasladosSearch]);
-
   const renderTrasladosTab = () => (
     <>
       <div className="inv-toolbar">
@@ -615,19 +426,23 @@ export default function InventarioMPPanel({ canEdit }: Props) {
       )}
       <div className="card"><div className="card-body p-0"><div className="data-table-wrapper">
         <table className="data-table w-full">
-          <thead><tr><th>Fecha</th><th>Motivo / Ref.</th><th>Código</th><th>Material</th><th style={{ textAlign: 'right' }}>Cantidad (kg)</th><th style={{ textAlign: 'center' }}>Semana</th>{canEdit && <th style={{ width: 60 }}>Acc.</th>}</tr></thead>
+          <thead><tr><th style={{ width: 30 }}></th><th>Fecha</th><th>Motivo / Ref.</th><th>Código</th><th>Material</th><th style={{ textAlign: 'right' }}>Cantidad (kg)</th><th style={{ textAlign: 'center' }}>Semana</th>{canEdit && <th style={{ width: 60 }}>Acc.</th>}</tr></thead>
           <tbody>
-            {loadingTraslados ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: 32 }}>⏳ Cargando...</td></tr> :
-            filteredTraslados.length === 0 ? <tr><td colSpan={7}><div className="empty-state"><ArrowUpCircle size={40} /><p>Sin salidas / mermas para {MESES[mes-1]} {anio}</p></div></td></tr> :
-            filteredTraslados.slice((trasladosPage - 1) * ITEMS_PER_PAGE, trasladosPage * ITEMS_PER_PAGE).map((t: any) => (
-              <tr key={t.id}>
+            {loadingTraslados ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: 32 }}>⏳ Cargando...</td></tr> :
+            filteredTraslados.length === 0 ? <tr><td colSpan={8}><div className="empty-state"><ArrowUpCircle size={40} /><p>Sin salidas / mermas para {MESES[mes-1]} {anio}</p></div></td></tr> :
+            filteredTraslados.slice((trasladosPage - 1) * ITEMS_PER_PAGE, trasladosPage * ITEMS_PER_PAGE).map((t: InventarioTrasladoRow) => {
+              const isExp = expandedTraslados.has(t.id);
+              return (
+              <Fragment key={t.id}>
+              <tr onClick={() => handleExpandTraslado(t.id)} style={{ cursor: 'pointer' }}>
+                <td>{isExp ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</td>
                 <td>{t.fecha}</td>
                 <td style={{ fontWeight: 500 }}>{t.cliente_op}</td>
                 <td style={{ fontWeight: 600, color: 'var(--text-muted)' }}>{t.inventario_materiales?.codigo}</td>
                 <td>{t.inventario_materiales?.nombre}</td>
                 <td style={{ textAlign: 'right', fontWeight: 600, color: '#C62828' }}>−{Number(t.cantidad_kg).toLocaleString('es-CO')}</td>
                 <td style={{ textAlign: 'center' }}><span className="badge badge-success">S{t.semana}</span></td>
-                {canEdit && <td>
+                {canEdit && <td onClick={e => e.stopPropagation()}>
                   <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
                     <button className="btn btn-outline btn-sm btn-icon" style={{ borderColor: 'var(--border-color)' }} title="Editar" onClick={() => {
                       setTrasladoForm({ id: t.id, fecha: t.fecha, cliente_op: t.cliente_op, semana: String(t.semana), observaciones: t.observaciones || '', materiales: [{ material_id: t.material_id, cantidad_kg: t.cantidad_kg }] });
@@ -637,7 +452,41 @@ export default function InventarioMPPanel({ canEdit }: Props) {
                   </div>
                 </td>}
               </tr>
-            ))}
+              {isExp && (
+                <tr style={{ background: 'rgba(198, 40, 40, 0.02)' }}>
+                  <td colSpan={8} style={{ padding: '12px 20px' }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>Desglose de Lotes Consumidos (FIFO)</div>
+                    <div style={{ background: '#fff', border: '1px solid var(--border-color)', borderRadius: 8, padding: '0', overflowY: 'auto' }}>
+                      {loadingTrasladoLotes[t.id] ? (
+                        <div style={{ padding: '12px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Cargando desglose...</div>
+                      ) : trasladoLotesData[t.id] && trasladoLotesData[t.id].length > 0 ? (
+                        <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
+                          <thead style={{ background: '#f5f5f5' }}>
+                            <tr>
+                              <th style={{ padding: '6px 12px', textAlign: 'left', fontWeight: 600, color: 'var(--text-muted)' }}>Lote</th>
+                              <th style={{ padding: '6px 12px', textAlign: 'center', fontWeight: 600, color: 'var(--text-muted)' }}>Fecha Ingreso</th>
+                              <th style={{ padding: '6px 12px', textAlign: 'right', fontWeight: 600, color: 'var(--text-muted)' }}>Descontado (kg)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {trasladoLotesData[t.id].map((loteDesc: any, idx: number) => (
+                              <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                <td style={{ padding: '6px 12px', fontWeight: 500 }}>{loteDesc.inventario_lotes?.codigo_lote || 'Lote Desconocido'}</td>
+                                <td style={{ padding: '6px 12px', textAlign: 'center', color: 'var(--text-muted)' }}>{loteDesc.inventario_lotes?.fecha_ingreso || '—'}</td>
+                                <td style={{ padding: '6px 12px', textAlign: 'right', fontWeight: 600, color: '#C62828' }}>−{Number(loteDesc.cantidad).toLocaleString('es-CO')}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      ) : (
+                        <div style={{ padding: '12px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>No hay desglose de lotes para esta salida. (Posible registro antiguo).</div>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )}
+              </Fragment>
+            )})}
           </tbody>
         </table>
       </div>
@@ -658,77 +507,6 @@ export default function InventarioMPPanel({ canEdit }: Props) {
   //  TAB: CATÁLOGO
   // ═══════════════════════════════════════════════════════
 
-  const handleSaveMat = async () => {
-    if (!matForm.codigo || !matForm.nombre) return toast.error('Código y nombre son requeridos');
-    try {
-      await upsertInventarioMaterial({ 
-        id: matForm.id || undefined, 
-        codigo: Number(matForm.codigo), 
-        nombre: matForm.nombre, 
-        tipo: 'Materia Prima', 
-        udm: 'kg', 
-        peso_kg: matForm.peso_kg ? Number(matForm.peso_kg) : undefined,
-        min_cobertura_semanas: matForm.min_cobertura_semanas ? Number(matForm.min_cobertura_semanas) : 2
-      });
-      toast.success('Material guardado');
-      setShowMatForm(false);
-      setMatForm({ id: 0, codigo: '', nombre: '', peso_kg: '', min_cobertura_semanas: '2' });
-      loadMateriales();
-    } catch (e: any) { toast.error(e.message); }
-  };
-
-  const handleDeleteMat = async (id: number) => {
-    try { await deleteInventarioMaterial(id); toast.success('Material eliminado'); loadMateriales(); } catch (e: any) { toast.error(e.message); }
-  };
-
-  const handleImportMateriales = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const ab = await file.arrayBuffer();
-      const wb = XLSX.read(ab);
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows: any[] = XLSX.utils.sheet_to_json(ws);
-      let count = 0;
-      for (const r of rows) {
-        const codigo = Number(r['CODIGO'] || r['codigo'] || r['Código']);
-        const nombre = String(r['MATERIAL'] || r['material'] || r['nombre'] || r['NOMBRE'] || r['Nombre'] || '').trim();
-        const pesoKey = Object.keys(r).find(k => k.toUpperCase().includes('PESO'));
-        const peso = pesoKey ? Number(r[pesoKey]) || null : null;
-        if (!codigo || !nombre) continue;
-        await upsertInventarioMaterial({ codigo, nombre, tipo: 'Materia Prima', udm: 'kg', peso_kg: peso ?? undefined, min_cobertura_semanas: 2 });
-        count++;
-      }
-      toast.success(`${count} materiales importados`);
-      loadMateriales();
-    } catch (err: any) { toast.error(err.message); }
-    if (fileRef.current) fileRef.current.value = '';
-  };
-
-  const filteredMat = useMemo(() => {
-    if (!matSearch) return materiales;
-    const s = matSearch.toLowerCase();
-    return materiales.filter((m: any) => m.nombre.toLowerCase().includes(s) || String(m.codigo).includes(s));
-  }, [materiales, matSearch]);
-
-  const exportMatExcel = async () => {
-    const rows = filteredMat.map(m => ({
-      'Código': m.codigo,
-      'Nombre del Material': m.nombre,
-      'Peso (kg/ud)': m.peso_kg ?? '',
-      'Mín. Cobertura (Sem)': m.min_cobertura_semanas ?? 2
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Catálogo');
-    try {
-      if ('showSaveFilePicker' in window) {
-        const h = await (window as any).showSaveFilePicker({ suggestedName: `Catalogo_Materiales_${MESES[mes-1]}_${anio}.xlsx`, types: [{ description: 'Excel', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }] });
-        const w = await h.createWritable(); await w.write(XLSX.write(wb, { bookType: 'xlsx', type: 'array' })); await w.close();
-      } else { XLSX.writeFile(wb, `Catalogo_Materiales_${MESES[mes-1]}_${anio}.xlsx`); }
-    } catch (e: any) { if (e.name !== 'AbortError') toast.error(e.message); }
-  };
-
   const renderCatalogoTab = () => (
     <>
       <div className="inv-toolbar">
@@ -736,7 +514,7 @@ export default function InventarioMPPanel({ canEdit }: Props) {
           <div className="search-box"><Search size={18} /><input type="text" className="form-input" placeholder="Buscar material..." value={matSearch} onChange={e => { setMatSearch(e.target.value); setMatPage(1); }} style={{ paddingLeft: 40, width: 300 }} /></div>
         </div>
         <div className="inv-toolbar-right">
-          <input type="file" ref={fileRef} accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportMateriales} />
+          <input type="file" ref={fileRef} accept=".xlsx,.xls" style={{ display: 'none' }} onChange={e => handleImportMateriales(e, fileRef)} />
           {canEdit && <>
             <button className="btn btn-outline btn-sm" onClick={() => fileRef.current?.click()}><Upload size={16} /> Importar Excel</button>
             <button className="btn btn-outline btn-sm" onClick={exportMatExcel}><Download size={16} /> Exportar Excel</button>
@@ -763,7 +541,7 @@ export default function InventarioMPPanel({ canEdit }: Props) {
           <tbody>
             {loadingMat ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: 32 }}>⏳ Cargando maestro...</td></tr> :
             filteredMat.length === 0 ? <tr><td colSpan={5}><div className="empty-state"><BookOpen size={40} /><p>Sin materiales registrados</p></div></td></tr> :
-            filteredMat.slice((matPage - 1) * ITEMS_PER_PAGE, matPage * ITEMS_PER_PAGE).map((m: any) => (
+            filteredMat.slice((matPage - 1) * ITEMS_PER_PAGE, matPage * ITEMS_PER_PAGE).map((m: InventarioMaterial) => (
               <tr key={m.id}>
                 <td style={{ fontWeight: 600 }}>{m.codigo}</td>
                 <td>{m.nombre}</td>
@@ -795,72 +573,6 @@ export default function InventarioMPPanel({ canEdit }: Props) {
 
   // ═══════════════════════════════════════════════════════
   //  TAB: STOCK INICIAL
-  // ═══════════════════════════════════════════════════════
-  const handleStockChange = (idx: number, field: string, val: string) => {
-    setStockRows(prev => {
-      const next = [...prev];
-      next[idx] = { ...next[idx], [field]: val, dirty: true };
-      return next;
-    });
-  };
-
-  const handleSaveStock = async () => {
-    const rows = stockRows.filter(r => r.dirty && (r.stock_kg !== '' || r.consumo_estimado_mes !== ''));
-    if (rows.length === 0) return toast.info('No hay cambios para guardar');
-    try {
-      const payload = rows.map(r => ({
-        material_id: r.material_id, mes, anio,
-        stock_kg: Number(r.stock_kg) || 0,
-        consumo_estimado_mes: Number(r.consumo_estimado_mes) || 0,
-      }));
-      await upsertStockInicialBatch(payload);
-      toast.success(`Stock inicial guardado para ${rows.length} materiales`);
-      loadStockInicial();
-    } catch (e: any) { toast.error(e.message); }
-  };
-
-  const handleImportStock = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const ab = await file.arrayBuffer();
-      const wb = XLSX.read(ab);
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows: any[] = XLSX.utils.sheet_to_json(ws);
-      const matMap: Record<number, number> = {};
-      for (const m of materiales) matMap[m.codigo] = m.id;
-      const payload: any[] = [];
-      for (const r of rows) {
-        const codigo = Number(r['CODIGO'] || r['Código'] || r['codigo']);
-        const matId = matMap[codigo];
-        if (!matId) continue;
-        const stockKey = Object.keys(r).find(k => k.toUpperCase().includes('STOCK'));
-        const consumoKey = Object.keys(r).find(k => k.toUpperCase().includes('CONSUMO') && k.toUpperCase().includes('ESTIMADO'));
-        payload.push({
-          material_id: matId, mes, anio,
-          stock_kg: stockKey ? Number(r[stockKey]) || 0 : 0,
-          consumo_estimado_mes: consumoKey ? Number(r[consumoKey]) || 0 : 0,
-        });
-      }
-      if (payload.length > 0) {
-        await upsertStockInicialBatch(payload);
-        toast.success(`${payload.length} registros de stock importados`);
-        loadStockInicial();
-      } else {
-        toast.error('No se encontraron datos válidos');
-      }
-    } catch (err: any) { toast.error(err.message); }
-    if (fileRef.current) fileRef.current.value = '';
-  };
-
-  const filteredStock = useMemo(() => {
-    if (!stockSearch) return stockRows;
-    const s = stockSearch.toLowerCase();
-    return stockRows.filter((r: any) => r.nombre.toLowerCase().includes(s) || String(r.codigo).includes(s));
-  }, [stockRows, stockSearch]);
-
-  const dirtyCount = stockRows.filter(r => r.dirty).length;
-
   const renderStockInicialTab = () => (
     <>
       <div className="inv-toolbar">
@@ -869,7 +581,7 @@ export default function InventarioMPPanel({ canEdit }: Props) {
           <div className="search-box"><Search size={18} /><input type="text" className="form-input" placeholder="Buscar material..." value={stockSearch} onChange={e => setStockSearch(e.target.value)} style={{ paddingLeft: 40, width: 260 }} /></div>
         </div>
         <div className="inv-toolbar-right">
-          <input type="file" ref={fileRef} accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleImportStock} />
+          <input type="file" ref={fileRef} accept=".xlsx,.xls" style={{ display: 'none' }} onChange={e => handleImportStock(e, fileRef)} />
           {canEdit && <>
             <button className="btn btn-outline btn-sm" onClick={() => fileRef.current?.click()}><Upload size={16} /> Importar Excel</button>
             <button className="btn btn-primary btn-sm" onClick={handleSaveStock} disabled={dirtyCount === 0}>
@@ -887,7 +599,7 @@ export default function InventarioMPPanel({ canEdit }: Props) {
           <tbody>
             {loadingStock ? <tr><td colSpan={4} style={{ textAlign: 'center', padding: 32 }}>⏳ Cargando...</td></tr> :
             filteredStock.length === 0 ? <tr><td colSpan={4}><div className="empty-state"><Package size={40} /><p>Agrega materiales al catálogo primero</p></div></td></tr> :
-            filteredStock.map((r: any, i: number) => (
+            filteredStock.map((r, i: number) => (
               <tr key={r.material_id} style={r.dirty ? { background: 'rgba(46,125,50,0.04)' } : {}}>
                 <td style={{ fontWeight: 600 }}>{r.codigo}</td>
                 <td>{r.nombre}</td>

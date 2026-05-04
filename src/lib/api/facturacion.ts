@@ -6,6 +6,7 @@
 
 import supabase from '../supabase';
 import { registrarAuditoria } from '../supabase';
+import type { RemisionPendiente, RemisionOPDetail, HistoricoFacturacionRow, ImportFacturaExcelRow } from '../types';
 
 // ── Clientes / alimentos con facturación anticipada (sin remisión) ──
 export const CLIENTES_ANTICIPADOS = [
@@ -43,7 +44,7 @@ export async function fetchRemisionesPendientes(excludePedidoId?: number) {
   const pedidoMap: Record<string, number> = {};
   for (const pd of (pedidoDetalles || [])) {
     if (excludePedidoId && pd.pedido_id === excludePedidoId) continue;
-    const ped = (pd as any).pedidos;
+    const ped = (pd as { pedidos?: { num_remision?: number; estado?: string } }).pedidos;
     const key = `${ped?.num_remision}_${pd.op}`;
     pedidoMap[key] = (pedidoMap[key] || 0) + (pd.bultos_pedido || 0);
   }
@@ -60,11 +61,11 @@ export async function fetchRemisionesPendientes(excludePedidoId?: number) {
     };
   }
 
-  const remisionMap = new Map<number, any>();
+  const remisionMap = new Map<number, RemisionPendiente>();
   for (const d of (despachos || [])) {
     const rem = d.num_remision!;
     if (!remisionMap.has(rem)) {
-      const cliente = d.maestro_clientes as any;
+      const cliente = d.maestro_clientes as { nombre?: string; codigo_sap?: number } | null;
       remisionMap.set(rem, {
         num_remision: rem,
         fecha_despacho: d.fecha,
@@ -78,7 +79,7 @@ export async function fetchRemisionesPendientes(excludePedidoId?: number) {
     const saldo = (d.bultos_despachados || 0) - yaPedido;
     const alim = alimentoMap[d.lote!] || { codigo: 0, nombre: '' };
 
-    remisionMap.get(rem).ops.push({
+    remisionMap.get(rem)!.ops.push({
       op: d.lote,
       codigo_alimento: alim.codigo,
       referencia: alim.nombre,
@@ -89,7 +90,7 @@ export async function fetchRemisionesPendientes(excludePedidoId?: number) {
   }
 
   return Array.from(remisionMap.values()).filter(r =>
-    r.ops.some((op: any) => op.saldo_pendiente > 0)
+    r.ops.some((op: RemisionOPDetail) => op.saldo_pendiente! > 0)
   );
 }
 
@@ -121,7 +122,7 @@ export async function fetchRemisionCompleta(numRemision: number) {
 
   if (!despachos || despachos.length === 0) return null;
   const first = despachos[0];
-  const cliente = first.maestro_clientes as any;
+  const cliente = first.maestro_clientes as { nombre?: string; codigo_sap?: number } | null;
 
   return {
     num_remision: numRemision,
@@ -400,12 +401,12 @@ export async function fetchHistoricoFacturacion() {
     .order('num_factura', { ascending: false });
   if (error) throw error;
 
-  const rows: any[] = [];
+  const rows: HistoricoFacturacionRow[] = [];
   for (const factura of (facturas || [])) {
     for (const fp of (factura.factura_pedidos || [])) {
-      const pedido = (fp as any).pedidos;
+      const pedido = (fp as { pedidos?: Record<string, unknown> }).pedidos as Record<string, unknown> | undefined;
       if (!pedido) continue;
-      for (const det of (pedido.pedido_detalle || [])) {
+      for (const det of ((pedido.pedido_detalle as Record<string, unknown>[]) || [])) {
         rows.push({
           factura_id: factura.id,
           num_factura: factura.num_factura,
@@ -413,21 +414,21 @@ export async function fetchHistoricoFacturacion() {
           fecha_facturacion: factura.fecha_facturacion,
           estado_factura: factura.estado,
           matrizada: factura.matrizada || false,
-          pedido_id: pedido.id,
-          num_pedido: pedido.num_pedido,
-          num_remision: pedido.num_remision,
-          nombre_cliente: pedido.nombre_cliente,
-          codigo_cliente: pedido.codigo_cliente,
-          fecha_despacho: pedido.fecha_despacho,
-          estado_pedido: pedido.estado,
-          es_anticipado: pedido.es_anticipado,
-          fecha_pedido: pedido.created_at,
-          op: det.op,
-          codigo_alimento: det.codigo_alimento,
-          referencia: det.referencia,
-          bultos: det.bultos_pedido,
-          kg: det.kg_pedido,
-          bultos_despachados: det.bultos_despachados,
+          pedido_id: pedido.id as number,
+          num_pedido: pedido.num_pedido as string,
+          num_remision: pedido.num_remision as number | null,
+          nombre_cliente: pedido.nombre_cliente as string,
+          codigo_cliente: pedido.codigo_cliente as number | string,
+          fecha_despacho: pedido.fecha_despacho as string,
+          estado_pedido: pedido.estado as string,
+          es_anticipado: pedido.es_anticipado as boolean,
+          fecha_pedido: pedido.created_at as string,
+          op: det.op as number,
+          codigo_alimento: det.codigo_alimento as number,
+          referencia: det.referencia as string,
+          bultos: det.bultos_pedido as number,
+          kg: det.kg_pedido as number,
+          bultos_despachados: det.bultos_despachados as number,
         });
       }
     }
@@ -516,13 +517,28 @@ export async function eliminarOrdenSapOP(op: number) {
 /**
  * Import historical facturas based on exported headers.
  */
-export async function importarHistoricoFacturasExcel(data: any[]) {
+export async function importarHistoricoFacturasExcel(data: ImportFacturaExcelRow[]) {
   if (!data || data.length === 0) return { success: 0, errors: 0 };
   
   let successCount = 0;
   let errorCount = 0;
 
-  const facturasMap = new Map<string, any>();
+  const facturasMap = new Map<string, {
+    num_factura: string;
+    num_entrega: string;
+    fecha_facturacion: string;
+    estado: string;
+    pedidos: Map<string, {
+      num_pedido: string;
+      num_remision: string | null;
+      fecha_despacho: string | null;
+      nombre_cliente: string | null;
+      codigo_cliente: string | null;
+      estado: string;
+      es_anticipado: boolean;
+      detalles: Array<{ op: number; referencia: string | null; codigo_alimento: number | string | null; bultos: number; kg: number; orden_sap: string }>;
+    }>;
+  }>();
 
   for (const row of data) {
     const numFactura = String(row['N° Factura'] || '').trim();
@@ -534,7 +550,16 @@ export async function importarHistoricoFacturasExcel(data: any[]) {
         num_entrega: String(row['N° Entrega'] || '').trim(),
         fecha_facturacion: row['Fecha Facturación'] || new Date().toISOString().split('T')[0],
         estado: row['Estado Factura'] || 'FACTURADA',
-        pedidos: new Map<string, any>(),
+        pedidos: new Map<string, {
+          num_pedido: string;
+          num_remision: string | null;
+          fecha_despacho: string | null;
+          nombre_cliente: string | null;
+          codigo_cliente: string | null;
+          estado: string;
+          es_anticipado: boolean;
+          detalles: Array<{ op: number; referencia: string | null; codigo_alimento: number | string | null; bultos: number; kg: number; orden_sap: string }>;
+        }>(),
       });
     }
 
@@ -542,8 +567,8 @@ export async function importarHistoricoFacturasExcel(data: any[]) {
     const numPedido = String(row['N° Pedido'] || '').trim();
     if (!numPedido) continue;
 
-    if (!fac.pedidos.has(numPedido)) {
-      fac.pedidos.set(numPedido, {
+    if (!fac!.pedidos.has(numPedido)) {
+      fac!.pedidos.set(numPedido, {
         num_pedido: numPedido,
         num_remision: row['N° Remisión'] ? String(row['N° Remisión']) : null,
         fecha_despacho: row['Fecha Despacho'] || null,
@@ -555,8 +580,8 @@ export async function importarHistoricoFacturasExcel(data: any[]) {
       });
     }
 
-    const ped = fac.pedidos.get(numPedido);
-    ped.detalles.push({
+    const ped = fac!.pedidos.get(numPedido);
+    ped!.detalles.push({
       op: Number(row['OP']) || 0,
       referencia: row['Referencia'] || null,
       codigo_alimento: row['Cód. Alimento'] || null,
@@ -601,7 +626,7 @@ export async function importarHistoricoFacturasExcel(data: any[]) {
           if (pErr) throw pErr;
           pedidoId = nP.id;
 
-          const detallesRows = pData.detalles.map((d: any) => ({
+          const detallesRows = pData.detalles.map((d) => ({
             pedido_id: pedidoId,
             op: d.op,
             referencia: d.referencia,
@@ -651,8 +676,8 @@ export async function fetchProgramacionParaAnticipado() {
   return (data || []).map(row => ({
     op: row.lote,
     codigo_alimento: row.codigo_sap,
-    referencia: (row.maestro_alimentos as any)?.descripcion || '',
-    cliente: (row.maestro_clientes as any)?.nombre || '',
+    referencia: (row.maestro_alimentos as { descripcion?: string } | null)?.descripcion || '',
+    cliente: (row.maestro_clientes as { nombre?: string } | null)?.nombre || '',
     bultos_programados: row.bultos_programados,
   }));
 }

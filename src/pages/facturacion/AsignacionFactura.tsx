@@ -10,9 +10,10 @@ import {
   eliminarOrdenSapOP,
 } from '../../lib/supabase';
 import { toast } from '../../components/Toast';
+import { Pedido, PedidoDetalle } from '../../lib/types';
 
 export default function AsignacionFactura({ onRefreshKpis, isAdmin, canEdit = true }: { onRefreshKpis?: () => void; isAdmin?: boolean; canEdit?: boolean }) {
-  const [pedidos, setPedidos] = useState<any[]>([]);
+  const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -57,7 +58,7 @@ export default function AsignacionFactura({ onRefreshKpis, isAdmin, canEdit = tr
 
       // Build groups of interconnected pedidos
       const adj: Record<number, number[]> = {};
-      pedidosData.forEach((p: any) => {
+      pedidosData.forEach((p: Pedido) => {
         adj[p.id] = adj[p.id] || [];
         if (p.pedido_relacionado_id) {
           adj[p.pedido_relacionado_id] = adj[p.pedido_relacionado_id] || [];
@@ -67,7 +68,7 @@ export default function AsignacionFactura({ onRefreshKpis, isAdmin, canEdit = tr
       });
       const groups: number[][] = [];
       const visited = new Set<number>();
-      pedidosData.forEach((p: any) => {
+      pedidosData.forEach((p: Pedido) => {
         if (!visited.has(p.id)) {
           const grp: number[] = [];
           const q = [p.id];
@@ -93,8 +94,8 @@ export default function AsignacionFactura({ onRefreshKpis, isAdmin, canEdit = tr
       for (const po of progOps) progMap[po.op] = po.bultos;
       setProgramacionOPs(progMap);
 
-    } catch (e: any) {
-      toast.error('Error cargando pedidos liberados: ' + e.message);
+    } catch (e: unknown) {
+      toast.error('Error cargando pedidos liberados: ' + (e as Error).message);
     }
     setLoading(false);
   };
@@ -136,7 +137,7 @@ export default function AsignacionFactura({ onRefreshKpis, isAdmin, canEdit = tr
 
   // Get all unique OPs from selected pedidos
   const selectedPedidos = pedidos.filter(p => selectedIds.has(p.id));
-  const selectedOPs = new Map<number, any>();
+  const selectedOPs = new Map<number, PedidoDetalle>();
   const selectedOPsTotalBultos = new Map<number, number>();
 
   for (const p of selectedPedidos) {
@@ -174,8 +175,8 @@ export default function AsignacionFactura({ onRefreshKpis, isAdmin, canEdit = tr
         next[op] = false;
         return next;
       });
-    } catch (e: any) {
-      toast.error('Error al desvincular Orden SAP: ' + e.message);
+    } catch (e: unknown) {
+      toast.error('Error al desvincular Orden SAP: ' + (e as Error).message);
     }
   };
 
@@ -214,8 +215,8 @@ export default function AsignacionFactura({ onRefreshKpis, isAdmin, canEdit = tr
       setFechaFacturacion(new Date().toISOString().split('T')[0]);
       loadData();
       if (onRefreshKpis) onRefreshKpis();
-    } catch (e: any) {
-      toast.error('Error al crear factura: ' + e.message);
+    } catch (e: unknown) {
+      toast.error('Error al crear factura: ' + (e as Error).message);
     }
     setSaving(false);
   };
@@ -231,8 +232,8 @@ export default function AsignacionFactura({ onRefreshKpis, isAdmin, canEdit = tr
       }
       loadData();
       if (onRefreshKpis) onRefreshKpis();
-    } catch (e: any) {
-      toast.error('Error al eliminar: ' + e.message);
+    } catch (e: unknown) {
+      toast.error('Error al eliminar: ' + (e as Error).message);
     }
   };
 
@@ -245,8 +246,8 @@ export default function AsignacionFactura({ onRefreshKpis, isAdmin, canEdit = tr
       if (selectedIds.has(pedidoId)) toggleSelect(pedidoId);
       loadData();
       if (onRefreshKpis) onRefreshKpis();
-    } catch(e:any) {
-      toast.error('Error al devolver: ' + e.message);
+    } catch(e:unknown) {
+      toast.error('Error al devolver: ' + (e as Error).message);
     }
   };
 
@@ -313,7 +314,7 @@ export default function AsignacionFactura({ onRefreshKpis, isAdmin, canEdit = tr
                   </td></tr>
                 ) : filtered.map(p => {
                   const isSelected = selectedIds.has(p.id);
-                  const totalBultos = (p.pedido_detalle || []).reduce((s: number, d: any) => s + (d.bultos_pedido || 0), 0);
+                  const totalBultos = (p.pedido_detalle || []).reduce((s: number, d: PedidoDetalle) => s + (d.bultos_pedido || 0), 0);
                   const totalKg = totalBultos * 40;
 
                   // Find if interconnected
@@ -369,7 +370,7 @@ export default function AsignacionFactura({ onRefreshKpis, isAdmin, canEdit = tr
                               </tr>
                             </thead>
                             <tbody>
-                              {(p.pedido_detalle || []).map((d: any, i: number) => (
+                              {(p.pedido_detalle || []).map((d: PedidoDetalle, i: number) => (
                                 <tr key={i}>
                                   <td style={{ fontWeight: 700 }}>{d.op}</td>
                                   <td>{d.referencia || '—'}</td>
@@ -392,7 +393,7 @@ export default function AsignacionFactura({ onRefreshKpis, isAdmin, canEdit = tr
                           <div style={{ display: 'flex', gap: 4 }}>
                             <button
                               className="btn btn-outline btn-sm"
-                              onClick={() => handleDevolver(p.id, p.num_pedido)}
+                              onClick={() => handleDevolver(p.id, p.num_pedido || '')}
                               title="Devolver pedido para edición"
                             >
                               Devolver
@@ -400,7 +401,7 @@ export default function AsignacionFactura({ onRefreshKpis, isAdmin, canEdit = tr
                             {isAdmin && (
                               <button
                                 className="btn btn-danger btn-sm btn-icon"
-                                onClick={() => handleDelete(p.id, p.num_pedido)}
+                                onClick={() => handleDelete(p.id, p.num_pedido || '')}
                                 title="Eliminar Pedido"
                               >
                                 🗑️

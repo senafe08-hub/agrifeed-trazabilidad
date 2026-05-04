@@ -24,7 +24,7 @@ import { useRef, useMemo, useCallback, useState, type ReactNode, type CSSPropert
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-export interface VirtualColumn<T = any> {
+export interface VirtualColumn<T = Record<string, unknown>> {
   /** Unique key for the column (used as data accessor if no render fn) */
   key: string;
   /** Header label */
@@ -34,7 +34,7 @@ export interface VirtualColumn<T = any> {
   /** Min width in px */
   minWidth?: number;
   /** Custom cell renderer. If omitted, displays row[key] as string */
-  render?: (value: any, row: T, rowIndex: number) => ReactNode;
+  render?: (value: unknown, row: T, rowIndex: number) => ReactNode;
   /** Header style overrides */
   headerStyle?: CSSProperties;
   /** Cell style overrides */
@@ -43,7 +43,7 @@ export interface VirtualColumn<T = any> {
   filterInput?: ReactNode;
 }
 
-export interface VirtualTableProps<T = any> {
+export interface VirtualTableProps<T = Record<string, unknown>> {
   data: T[];
   columns: VirtualColumn<T>[];
   /** Estimated height of each row in px (default: 42) */
@@ -78,7 +78,7 @@ export interface VirtualTableProps<T = any> {
   className?: string;
 }
 
-export default function VirtualTable<T extends Record<string, any>>({
+export default function VirtualTable<T extends Record<string, unknown>>({
   data,
   columns,
   rowHeight = 42,
@@ -122,9 +122,9 @@ export default function VirtualTable<T extends Record<string, any>>({
 
   const getValue = useCallback((row: T, key: string) => {
     const parts = key.split('.');
-    let val: any = row;
+    let val: unknown = row;
     for (const p of parts) {
-      val = val?.[p];
+      val = (val as Record<string, unknown>)?.[p];
     }
     return val;
   }, []);

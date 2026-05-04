@@ -14,22 +14,40 @@ const tabs = [
   { id: 'granjas', label: 'Granjas' },
 ];
 
+export interface MaestroRow {
+  id: number;
+  created_at?: string;
+  codigo_sap?: string | number;
+  descripcion?: string;
+  categoria?: string;
+  nombre?: string;
+  poblacion?: string;
+  tipo_pago?: string;
+  limite_credito?: number;
+  tipo_inventario?: string;
+  grupo_inventario?: string;
+  placa?: string;
+  conductor?: string;
+  activo?: boolean;
+  [key: string]: string | number | boolean | undefined | null;
+}
+
 export default function MaestroPage() {
   const { canView, canEdit, userRole } = usePermissions('maestro');
   const canEditCupos = CUPO_EDIT_ROLES.includes(userRole);
 
   const [activeTab, setActiveTab] = useState('alimentos');
   const [searchTerm, setSearchTerm] = useState('');
-  const [columnFilters, setColumnFilters] = useState<any>({});
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
   
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<MaestroRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   // CRUD State
   const [showForm, setShowForm] = useState(false);
   const [formMode, setFormMode] = useState<'crear' | 'editar'>('crear');
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState<any>({});
+  const [formData, setFormData] = useState<Partial<MaestroRow>>({});
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
 
@@ -74,7 +92,7 @@ export default function MaestroPage() {
     setLoading(false);
   };
 
-  const handleOpenForm = (item?: any) => {
+  const handleOpenForm = (item?: MaestroRow) => {
     if (!canEdit) return;
     if (item) {
       setFormMode('editar');
@@ -96,11 +114,11 @@ export default function MaestroPage() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
-    let val: any = value;
+    let val: string | number | boolean | null = value;
     if (type === 'number') val = value ? Number(value) : null;
     if (type === 'checkbox') val = (e.target as HTMLInputElement).checked;
     
-    setFormData((prev: any) => ({ ...prev, [name]: val }));
+    setFormData((prev: Partial<MaestroRow>) => ({ ...prev, [name]: val }));
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -126,8 +144,8 @@ export default function MaestroPage() {
       }
       handleCloseForm();
       fetchData();
-    } catch (err: any) {
-      alert(`Error al guardar: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`Error al guardar: ${(err as Error).message}`);
     } finally {
       setSaving(false);
     }
@@ -157,7 +175,7 @@ export default function MaestroPage() {
   };
 
   const handleColFilter = (key: string, value: string) => {
-    setColumnFilters((prev: any) => ({ ...prev, [key]: value }));
+    setColumnFilters((prev: Record<string, string>) => ({ ...prev, [key]: value }));
   };
 
   const renderFilterInput = (colKey: string) => {
@@ -223,7 +241,7 @@ export default function MaestroPage() {
     
     // Prepare Data for Excel
     const dataForExcel = tableData.map(row => {
-      let filteredRow: any = {};
+      let filteredRow: Record<string, unknown> = {};
       headers.forEach(h => filteredRow[h] = row[h]);
       return filteredRow;
     });
@@ -243,7 +261,7 @@ export default function MaestroPage() {
             accept: {'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']},
           }],
         };
-        const handle = await (window as any).showSaveFilePicker(opts);
+        const handle = await (window as unknown as { showSaveFilePicker: (o: unknown) => Promise<{ createWritable: () => Promise<{ write: (data: unknown) => Promise<void>, close: () => Promise<void> }> }> }).showSaveFilePicker(opts);
         const writable = await handle.createWritable();
         const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
         await writable.write(buffer);
@@ -252,9 +270,9 @@ export default function MaestroPage() {
         // Fallback 
         XLSX.writeFile(workbook, `Maestros_${activeTab}.xlsx`);
       }
-    } catch (e: any) {
-      if (e.name !== 'AbortError') {
-         alert("Error al guardar el archivo: " + e.message);
+    } catch (e: unknown) {
+      if ((e as Error).name !== 'AbortError') {
+         alert("Error al guardar el archivo: " + (e as Error).message);
       }
     }
   };
@@ -384,7 +402,7 @@ export default function MaestroPage() {
                     <label className="form-label">Categoría</label>
                     <input type="text" name="categoria" list="cat-list" className="form-input" value={formData.categoria || ''} onChange={handleInputChange} />
                     <datalist id="cat-list">
-                      {Array.from(new Set(data.map(d => d.categoria).filter(Boolean))).map((cat: any) => (
+                      {Array.from(new Set(data.map(d => d.categoria).filter(Boolean))).map((cat) => (
                         <option key={cat} value={cat} />
                       ))}
                     </datalist>
@@ -407,7 +425,7 @@ export default function MaestroPage() {
                     <input type="text" name="poblacion" className="form-input" value={formData.poblacion || ''} onChange={handleInputChange}
                       list="pob-list" />
                     <datalist id="pob-list">
-                      {Array.from(new Set(data.map(d => d.poblacion).filter(Boolean))).map((p: any) => (
+                      {Array.from(new Set(data.map(d => d.poblacion).filter(Boolean))).map((p) => (
                         <option key={p} value={p} />
                       ))}
                     </datalist>
@@ -442,7 +460,7 @@ export default function MaestroPage() {
                       value={formData.grupo_inventario || ''} onChange={handleInputChange}
                       list="grupo-inv-list" />
                     <datalist id="grupo-inv-list">
-                      {Array.from(new Set(data.map(d => d.grupo_inventario).filter(Boolean))).map((g: any) => (
+                      {Array.from(new Set(data.map(d => d.grupo_inventario).filter(Boolean))).map((g) => (
                         <option key={g} value={g} />
                       ))}
                     </datalist>

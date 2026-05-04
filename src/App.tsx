@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { User } from '@supabase/supabase-js';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { WifiOff } from 'lucide-react';
 import AppLayout from './components/layout/AppLayout';
@@ -16,24 +17,12 @@ import VentasPage from './pages/VentasPage';
 import supabase from './lib/supabase';
 import { WelcomeScreen } from './components/WelcomeFlow';
 import { ModuleSelectionScreen } from './components/ModuleSelectionScreen';
+import Toast from './components/Toast';
 
-// Mapeo de pseudo-correos a roles (temporal, lo ideal es guardarlo en una tabla 'roles_usuario' en Supabase)
-const ROLE_MAPPING: Record<string, string> = {
-  'produccion@agrifeed.local': 'Auxiliar de Producción',
-  'costos@agrifeed.local': 'Analista de Costos',
-  'supervisor@agrifeed.local': 'Supervisor Producción',
-  'logistica@agrifeed.local': 'Auxiliar Logística',
-  'admin_aux@agrifeed.local': 'Auxiliar Administrativa',
-  'coordinador@agrifeed.local': 'Coordinador Administrativo',
-  'piciz@agrifeed.local': 'Coordinador PICIZ',
-  'gerencia@agrifeed.local': 'Gerencia',
-  'cartera@agrifeed.local': 'Analista de Cartera',
-  'admin@agrifeed.local': 'Administrador',
-  'ventas@agrifeed.local': 'Representante Ventas',
-};
+// El mapeo de roles ahora se obtiene desde la base de datos (tabla: usuarios_roles)
 
 function App() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [userRole, setUserRole] = useState('Administrador');
   const [loading, setLoading] = useState(true);
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -57,12 +46,28 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const fetchRole = async (email: string) => {
+      try {
+        const { data, error } = await supabase.from('usuarios_roles').select('rol').eq('email', email).single();
+        if (!error && data?.rol) {
+          setUserRole(data.rol);
+        } else {
+          setUserRole('Desconocido');
+        }
+      } catch (e) {
+        setUserRole('Desconocido');
+      }
+    };
+
     // Verificar la sesión de Supabase
     supabase.auth.getSession().then(({ data: { session } }) => {
       const sbUser = session?.user ?? null;
       setUser(sbUser);
       if (sbUser?.email) {
-         setUserRole(ROLE_MAPPING[sbUser.email.toLowerCase()] || 'Administrador');
+         fetchRole(sbUser.email.toLowerCase());
+         localStorage.setItem('localUserEmail', sbUser.email.toLowerCase());
+      } else {
+         localStorage.removeItem('localUserEmail');
       }
       setLoading(false);
     });
@@ -71,7 +76,10 @@ function App() {
       const sbUser = session?.user ?? null;
       setUser(sbUser);
       if (sbUser?.email) {
-         setUserRole(ROLE_MAPPING[sbUser.email.toLowerCase()] || 'Administrador');
+         fetchRole(sbUser.email.toLowerCase());
+         localStorage.setItem('localUserEmail', sbUser.email.toLowerCase());
+      } else {
+         localStorage.removeItem('localUserEmail');
       }
     });
 
@@ -80,8 +88,6 @@ function App() {
 
   const handleLogin = async (username: string, password: string) => {
     setLoginError(null);
-    setLoginLoading(true);
-
     setLoginLoading(true);
 
     if (!navigator.onLine) {
@@ -111,6 +117,7 @@ function App() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+    localStorage.removeItem('localUserEmail');
     setUser(null);
   };
 
@@ -207,6 +214,7 @@ function App() {
     <BrowserRouter>
       {offlineBanner}
       <UpdateChecker />
+      <Toast />
       
       {loginFlowStage === 'welcome' ? (
         <WelcomeScreen onFinish={() => setLoginFlowStage('selection')} />

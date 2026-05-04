@@ -1,4 +1,5 @@
 // src/lib/permissions.ts
+import { useOutletContext } from 'react-router-dom';
 
 export type ModuleName = 'dashboard' | 'trazabilidad' | 'maestro' | 'programacion' | 'formulacion' | 'produccion' | 'despachos' | 'facturacion' | 'admin' | 'ventas';
 export type FacturacionTab = 'pedido' | 'cartera' | 'factura' | 'historico' | 'dashboard_cartera';
@@ -96,11 +97,10 @@ export const ROLE_PERMISSIONS: Record<string, RolePermissions> = {
 };
 
 // Hook for easier access
-import { useOutletContext } from 'react-router-dom';
 
 export function usePermissions(moduleName: ModuleName) {
   const context = useOutletContext<{ userRole: string }>() || { userRole: '' };
-  const role = ROLE_PERMISSIONS[context.userRole] || ROLE_PERMISSIONS['Invitado'] || { canView: [], canEdit: [] };
+  const role = ROLE_PERMISSIONS[context.userRole] || { canView: [], canEdit: [] };
 
   const isRoleAdmin = context.userRole === 'Administrador';
 

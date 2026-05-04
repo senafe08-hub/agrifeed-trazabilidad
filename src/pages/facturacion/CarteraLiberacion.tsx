@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { ShieldCheck, ShieldX, Search, Inbox, Trash2 } from 'lucide-react';
 import { fetchPedidosPorEstado, actualizarEstadoPedido, eliminarPedido } from '../../lib/supabase';
 import { toast } from '../../components/Toast';
+import { Pedido, PedidoDetalle } from '../../lib/types';
 
 export default function CarteraLiberacion({ onRefreshKpis, isAdmin, canEdit = true }: { onRefreshKpis?: () => void; isAdmin?: boolean; canEdit?: boolean }) {
-  const [pedidos, setPedidos] = useState<any[]>([]);
+  const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [processing, setProcessing] = useState<number | null>(null);
@@ -18,8 +19,8 @@ export default function CarteraLiberacion({ onRefreshKpis, isAdmin, canEdit = tr
     try {
       const data = await fetchPedidosPorEstado('PENDIENTE LIBERACIÓN');
       setPedidos(data);
-    } catch (e: any) {
-      toast.error('Error cargando cartera: ' + e.message);
+    } catch (e: unknown) {
+      toast.error('Error cargando cartera: ' + (e as Error).message);
     }
     setLoading(false);
   };
@@ -32,8 +33,8 @@ export default function CarteraLiberacion({ onRefreshKpis, isAdmin, canEdit = tr
       toast.success('Pedido liberado correctamente.');
       loadPedidos();
       if (onRefreshKpis) onRefreshKpis();
-    } catch (e: any) {
-      toast.error('Error al liberar: ' + e.message);
+    } catch (e: unknown) {
+      toast.error('Error al liberar: ' + (e as Error).message);
     }
     setProcessing(null);
   };
@@ -46,8 +47,8 @@ export default function CarteraLiberacion({ onRefreshKpis, isAdmin, canEdit = tr
       toast.success('Pedido rechazado — marcado como VERIFICAR PEDIDO.');
       loadPedidos();
       if (onRefreshKpis) onRefreshKpis();
-    } catch (e: any) {
-      toast.error('Error al rechazar: ' + e.message);
+    } catch (e: unknown) {
+      toast.error('Error al rechazar: ' + (e as Error).message);
     }
     setProcessing(null);
   };
@@ -60,8 +61,8 @@ export default function CarteraLiberacion({ onRefreshKpis, isAdmin, canEdit = tr
       toast.success('Pedido eliminado correctamente.');
       loadPedidos();
       if (onRefreshKpis) onRefreshKpis();
-    } catch (e: any) {
-      toast.error('Error al eliminar: ' + e.message);
+    } catch (e: unknown) {
+      toast.error('Error al eliminar: ' + (e as Error).message);
     }
     setProcessing(null);
   };
@@ -122,8 +123,8 @@ export default function CarteraLiberacion({ onRefreshKpis, isAdmin, canEdit = tr
                     </div>
                   </td></tr>
                 ) : filtered.map(p => {
-                  const fecha = new Date(p.created_at);
-                  const totalBultos = (p.pedido_detalle || []).reduce((s: number, d: any) => s + (d.bultos_pedido || 0), 0);
+                  const fecha = new Date(p.created_at || new Date());
+                  const totalBultos = (p.pedido_detalle || []).reduce((s: number, d: PedidoDetalle) => s + (d.bultos_pedido || 0), 0);
                   return (
                     <tr key={p.id}>
                       <td>{fecha.toLocaleDateString('es-CO')}</td>
@@ -139,7 +140,7 @@ export default function CarteraLiberacion({ onRefreshKpis, isAdmin, canEdit = tr
                       <td style={{ fontFamily: 'monospace' }}>{p.codigo_cliente || '—'}</td>
                       <td>
                         <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-                          {(p.pedido_detalle || []).map((d: any, i: number) => (
+                          {(p.pedido_detalle || []).map((d: PedidoDetalle, i: number) => (
                             <span key={i} style={{
                               background: 'var(--green-50)', border: '1px solid var(--green-200)',
                               borderRadius: 4, padding: '1px 5px', fontSize: '0.7rem', fontWeight: 700,
@@ -171,7 +172,7 @@ export default function CarteraLiberacion({ onRefreshKpis, isAdmin, canEdit = tr
                             {isAdmin && (
                               <button
                                 className="btn btn-danger btn-sm btn-icon"
-                                onClick={() => handleDelete(p.id, p.num_pedido)}
+                                onClick={() => handleDelete(p.id, p.num_pedido || '')}
                                 disabled={processing === p.id}
                                 title="Eliminar Pedido"
                               >

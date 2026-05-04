@@ -15,7 +15,7 @@ export interface CasaFormuladora {
   activo: boolean;
 }
 
-import { getISOWeek, parseISO, setISOWeek, startOfISOWeek, addDays, format, setWeekYear } from 'date-fns';
+import { getISOWeek, getISOWeeksInYear, parseISO, setISOWeek, startOfISOWeek, addDays, format, setWeekYear } from 'date-fns';
 
 export interface VentaSolicitud {
   id?: number;
@@ -113,6 +113,15 @@ function diaIndex(dia: string): number {
   return map[dia] ?? -1;
 }
 
+/** Calcula la semana ISO siguiente, respetando años con 52 o 53 semanas */
+function getNextISOWeek(semana: number, anio: number): { semana: number; anio: number } {
+  const maxWeeks = getISOWeeksInYear(new Date(anio, 0, 4)); // Jan 4 always falls in week 1 of its ISO year
+  if (semana >= maxWeeks) {
+    return { semana: 1, anio: anio + 1 };
+  }
+  return { semana: semana + 1, anio };
+}
+
 // ═══════════ SOLICITUDES CRUD ═══════════
 
 // Cache de maestros para enriquecer solicitudes sin FK joins
@@ -198,12 +207,12 @@ export async function createSolicitud(sol: {
 }
 
 export async function updateSolicitud(id: number, updates: Partial<VentaSolicitud>) {
-  const payload: any = { ...updates };
+  const payload: Record<string, unknown> = { ...updates };
   delete payload.id; delete payload.created_at; delete payload.maestro_clientes;
   delete payload.maestro_alimentos; delete payload.casas_formuladoras;
   if (payload.fecha) {
-    payload.semana = calcularSemanaISO(payload.fecha);
-    payload.dia_semana = calcularDiaSemana(payload.fecha);
+    payload.semana = calcularSemanaISO(payload.fecha as string);
+    payload.dia_semana = calcularDiaSemana(payload.fecha as string);
   }
   const { error } = await supabase.from('ventas_solicitudes').update(payload).eq('id', id);
   if (error) throw error;
@@ -267,11 +276,11 @@ export async function calcularVistaSemanal(semana: number, anio: number): Promis
     const key = `${s.cliente_id}-${s.codigo_sap}-${s.casa_formuladora_id}`;
     if (!map.has(key)) {
       map.set(key, {
-        cliente: (s.maestro_clientes as any)?.nombre || `Cliente ${s.cliente_id}`,
+        cliente: (s.maestro_clientes as { nombre?: string })?.nombre || `Cliente ${s.cliente_id}`,
         clienteId: s.cliente_id,
-        referencia: (s.maestro_alimentos as any)?.descripcion || `SAP ${s.codigo_sap}`,
+        referencia: (s.maestro_alimentos as { descripcion?: string })?.descripcion || `SAP ${s.codigo_sap}`,
         codigoSap: s.codigo_sap,
-        casa: (s.casas_formuladoras as any)?.nombre || '',
+        casa: (s.casas_formuladoras as { nombre?: string })?.nombre || '',
         casaId: s.casa_formuladora_id,
         dias: [0, 0, 0, 0, 0, 0, 0],
         total: 0,
@@ -314,7 +323,7 @@ export async function ejecutarMRP(semana: number, anio: number): Promise<MRPRow[
     supabase.from('maestro_alimentos').select('codigo_sap, descripcion'),
     clienteGrupoMapPromise,
     fetchSolicitudes(semana, anio),
-    fetchSolicitudes(semana + 1 > 52 ? 1 : semana + 1, semana + 1 > 52 ? anio + 1 : anio),
+    (() => { const next = getNextISOWeek(semana, anio); return fetchSolicitudes(next.semana, next.anio); })(),
     supabase.from('reprocesos_pt').select('grupo, codigo_sap, cantidad').eq('semana', semana).eq('anio', anio),
     supabase.from('prestamos_inventario').select('*').in('estado', ['PENDIENTE', 'PARCIAL']),
     supabase.from('programacion')
@@ -340,7 +349,7 @@ export async function ejecutarMRP(semana: number, anio: number): Promise<MRPRow[
 
   const procesarSolicitudes = (sols: VentaSolicitud[], campo: 'actual' | 'proxima') => {
     for (const s of sols) {
-      const c = s.casas_formuladoras as any;
+      const c = s.casas_formuladoras as { id?: number; nombre?: string; activo?: boolean } | null;
       const cName = Array.isArray(c) ? c[0]?.nombre : c?.nombre;
       const grupo = resolveGrupo(s.cliente_id, clienteGrupoMap, s.observaciones, cName);
       if (!grupo) continue;
@@ -409,9 +418,9 @@ export async function ejecutarMRP(semana: number, anio: number): Promise<MRPRow[
     const grupo = resolveGrupo(op.cliente_id, clienteGrupoMap, op.observaciones);
     if (!grupo) continue;
     
-    const producido = ((op.produccion as any[]) || []).reduce((s: number, p: any) => s + (p.bultos_entregados || 0), 0);
-    const bachesEntregados = ((op.produccion as any[]) || []).reduce((s: number, p: any) => s + (p.baches_entregados || 0), 0);
-    const bachesProgramados = (op as any).num_baches || 0;
+    const producido = ((op.produccion as Record<string, unknown>[]) || []).reduce((s: number, p: Record<string, unknown>) => s + ((p.bultos_entregados as number) || 0), 0);
+    const bachesEntregados = ((op.produccion as Record<string, unknown>[]) || []).reduce((s: number, p: Record<string, unknown>) => s + ((p.baches_entregados as number) || 0), 0);
+    const bachesProgramados = (op as { num_baches?: number }).num_baches || 0;
     
     // Si ya se completaron todos los baches programados, la OP está cerrada operativamente
     // aunque falten unos pocos bultos por diferencia de rendimiento
@@ -780,33 +789,71 @@ export async function fetchPrestamos(estado?: string) {
 }
 
 export async function crearPrestamo(prest: {
-  grupo_origen: string; grupo_destino: string; codigo_sap: number; cantidad: number; op_compensacion?: number; motivo?: string;
+  grupo_origen: string; grupo_destino: string; codigo_sap: number; cantidad: number; op_compensacion?: number; motivo?: string; estado?: string;
 }) {
   const userEmail = localStorage.getItem('localUserEmail') || 'Sistema';
-  const { error } = await supabase.from('prestamos_inventario').insert([{ ...prest, created_by: userEmail }]);
+  const { error } = await supabase.from('prestamos_inventario').insert([{ ...prest, created_by: userEmail, estado: prest.estado || 'PENDIENTE' }]);
   if (error) throw error;
-  await registrarAuditoria('CREATE', 'Inventario PT', `Préstamo: ${prest.cantidad} bt de ${prest.grupo_origen} → ${prest.grupo_destino}`);
+  await registrarAuditoria('CREATE', 'Inventario PT', `Préstamo: ${prest.cantidad} bt de ${prest.grupo_origen} → ${prest.grupo_destino} (Estado: ${prest.estado || 'PENDIENTE'})`);
 }
 
-export async function compensarPrestamo(prestamoId: number, cantidadCompensar: number) {
+export async function reversarPrestamo(prestamoId: number, opLote: string | number, grupoDestino: string) {
+  // 1. Validar que no existan despachos para este grupo en la OP especificada
+  const { data: despachos } = await supabase.from('despachos').select('cliente_id').eq('lote', opLote);
+  if (despachos && despachos.length > 0) {
+    const clienteGrupoMap = await getClienteGrupoMap();
+    for (const d of despachos) {
+      const { data: clienteInfo } = await supabase.from('maestro_clientes').select('nombre').eq('codigo_sap', d.cliente_id).single();
+      const grupo = resolveGrupo(d.cliente_id, clienteGrupoMap, clienteInfo?.nombre);
+      if (grupo && grupo.split('|')[0].trim() === grupoDestino) {
+        throw new Error(`No se puede reversar el préstamo: Ya existen bultos despachados para el grupo ${grupoDestino} en la OP ${opLote}.`);
+      }
+    }
+  }
+
+  // 2. Ejecutar la reversión (borrado)
+  const { error } = await supabase.from('prestamos_inventario').delete().eq('id', prestamoId);
+  if (error) throw error;
+  
+  await registrarAuditoria('DELETE', 'Inventario PT', `Préstamo ${prestamoId} reversado (OP ${opLote} hacia ${grupoDestino})`);
+}
+
+export async function compensarPrestamo(prestamoId: number, cantidadCompensar: number, opLoteCompensador?: string | number) {
   const { data: p, error: e1 } = await supabase.from('prestamos_inventario').select('*').eq('id', prestamoId).single();
   if (e1 || !p) throw e1 || new Error('Préstamo no encontrado');
 
   const nuevaComp = Math.min((p.cantidad_compensada || 0) + cantidadCompensar, p.cantidad);
   const nuevoEstado = nuevaComp >= p.cantidad ? 'COMPENSADO' : 'PARCIAL';
 
+  let nuevoMotivo = p.motivo || '';
+  if (opLoteCompensador && !nuevoMotivo.includes(`Repuesto con OP ${opLoteCompensador}`)) {
+    nuevoMotivo += ` | Repuesto con OP ${opLoteCompensador}`;
+  }
+
   await supabase.from('prestamos_inventario').update({
     cantidad_compensada: nuevaComp, estado: nuevoEstado,
     compensado_at: nuevoEstado === 'COMPENSADO' ? new Date().toISOString() : null,
+    motivo: nuevoMotivo
   }).eq('id', prestamoId);
 
   await registrarAuditoria('UPDATE', 'Inventario PT', `Préstamo ${prestamoId}: compensado ${cantidadCompensar} bt → ${nuevoEstado}`);
 }
 
 export async function compensarPrestamosPorOP(opLote: number | string, cantidadEntregada: number) {
+  // 1. Identificar a quién pertenece esta OP
+  const { data: prog } = await supabase.from('programacion').select('codigo_sap, cliente_id, observaciones').eq('lote', opLote).single();
+  if (!prog) return;
+
+  await ensureCaches();
+  const clienteGrupoMap = await getClienteGrupoMap();
+  const grupoProducido = resolveGrupo(prog.cliente_id, clienteGrupoMap, prog.observaciones || undefined);
+  if (!grupoProducido) return;
+
+  // 2. Buscar préstamos PENDIENTES donde ESTE GRUPO sea el destino (le prestaron y ahora debe reponer)
   const { data: prestamos } = await supabase.from('prestamos_inventario')
     .select('*')
-    .eq('op_compensacion', opLote)
+    .eq('grupo_destino', grupoProducido)
+    .eq('codigo_sap', prog.codigo_sap)
     .in('estado', ['PENDIENTE', 'PARCIAL'])
     .order('created_at', { ascending: true });
 
@@ -817,193 +864,250 @@ export async function compensarPrestamosPorOP(opLote: number | string, cantidadE
     if (restante <= 0) break;
     const faltante = p.cantidad - (p.cantidad_compensada || 0);
     const aCompensar = Math.min(faltante, restante);
-    await compensarPrestamo(p.id, aCompensar);
+    await compensarPrestamo(p.id, aCompensar, opLote);
     restante -= aCompensar;
   }
 }
 
+export async function reversarCompensacionPorOP(opLote: number | string, cantidadARestar: number) {
+  const { data: prestamos } = await supabase.from('prestamos_inventario')
+    .select('*')
+    .ilike('motivo', `%Repuesto con OP ${opLote}%`)
+    .order('compensado_at', { ascending: false });
+
+  if (!prestamos || prestamos.length === 0) return;
+
+  let restante = cantidadARestar;
+  for (const p of prestamos) {
+    if (restante <= 0) break;
+    
+    const compActual = p.cantidad_compensada || 0;
+    if (compActual <= 0) continue;
+
+    const aRestar = Math.min(compActual, restante);
+    const nuevaComp = compActual - aRestar;
+    
+    let nuevoMotivo = p.motivo || '';
+    if (nuevaComp === 0) {
+      nuevoMotivo = nuevoMotivo.replace(new RegExp(`\\|?\\s*Repuesto con OP ${opLote}`, 'g'), '').trim();
+    }
+
+    const nuevoEstado = nuevaComp >= p.cantidad ? 'COMPENSADO' : nuevaComp > 0 ? 'PARCIAL' : 'PENDIENTE';
+
+    await supabase.from('prestamos_inventario').update({
+      cantidad_compensada: nuevaComp,
+      estado: nuevoEstado,
+      compensado_at: nuevoEstado === 'COMPENSADO' ? p.compensado_at : null,
+      motivo: nuevoMotivo
+    }).eq('id', p.id);
+
+    await registrarAuditoria('UPDATE', 'Inventario PT', `Reversión Prod: Préstamo ${p.id} compensación reducida en ${aRestar} bt → ${nuevoEstado}`);
+    restante -= aRestar;
+  }
+}
+
+export async function verificarDependenciasOP(opLote: number | string): Promise<{ tieneDependencias: boolean; mensaje: string }> {
+  // 1. Verificar despachos
+  const { count: despachosCount } = await supabase.from('despachos').select('id', { count: 'exact', head: true }).eq('lote', opLote);
+  if (despachosCount && despachosCount > 0) {
+    return { tieneDependencias: true, mensaje: 'Esta OP ya tiene despachos (remisiones) asociados.' };
+  }
+
+  // 2. Verificar préstamos donde esta OP fue la fuente (prestada o cedida)
+  const { count: prestamosOrigenCount } = await supabase.from('prestamos_inventario')
+    .select('id', { count: 'exact', head: true })
+    .ilike('motivo', `%tomado de OP ${opLote}%`);
+  
+  if (prestamosOrigenCount && prestamosOrigenCount > 0) {
+    return { tieneDependencias: true, mensaje: 'Bultos de esta OP ya fueron prestados o cedidos a otro grupo.' };
+  }
+
+  return { tieneDependencias: false, mensaje: '' };
+}
+
+export async function getSaldoDisponiblePorOP(opLote: number | string): Promise<number> {
+  const [{ data: prod }, { data: desp }, { data: prest }, { data: rep }] = await Promise.all([
+    supabase.from('produccion').select('bultos_entregados').eq('lote', opLote),
+    supabase.from('despachos').select('bultos_despachados').eq('lote', opLote),
+    supabase.from('prestamos_inventario').select('cantidad, cantidad_compensada, motivo').ilike('motivo', `%OP ${opLote}%`),
+    supabase.from('reprocesos_pt').select('cantidad').ilike('motivo', `%OP ${opLote}%`)
+  ]);
+
+  const totalProd = (prod || []).reduce((acc, p) => acc + (p.bultos_entregados || 0), 0);
+  const totalDesp = (desp || []).reduce((acc, d) => acc + (d.bultos_despachados || 0), 0);
+  const totalRep = (rep || []).reduce((acc, r) => acc + (r.cantidad || 0), 0);
+  
+  let totalPrest = 0;
+  for (const p of (prest || [])) {
+    if (p.motivo?.match(new RegExp(`tomado de OP ${opLote}`))) {
+      totalPrest += (p.cantidad || 0);
+    }
+    if (p.motivo?.match(new RegExp(`Repuesto con OP ${opLote}`))) {
+      totalPrest += (p.cantidad_compensada || 0);
+    }
+  }
+  
+  return totalProd - totalDesp - totalPrest - totalRep;
+}
+
+export async function fetchPrestamosAcumuladosPorOP(): Promise<Record<number, number>> {
+  const { data } = await supabase.from('prestamos_inventario').select('motivo, cantidad, cantidad_compensada').not('motivo', 'is', null);
+  const acum: Record<number, number> = {};
+  for (const p of (data || [])) {
+    if (!p.motivo) continue;
+    
+    const sourceMatch = p.motivo.match(/tomado de OP (\d+)/);
+    if (sourceMatch && sourceMatch[1]) {
+      const op = parseInt(sourceMatch[1]);
+      acum[op] = (acum[op] || 0) + (p.cantidad || 0);
+    }
+    
+    const compMatch = p.motivo.match(/Repuesto con OP (\d+)/);
+    if (compMatch && compMatch[1]) {
+      const op = parseInt(compMatch[1]);
+      acum[op] = (acum[op] || 0) + (p.cantidad_compensada || 0);
+    }
+  }
+  return acum;
+}
+
 // ═══════════ INVENTARIO PT ═══════════
 
-export async function fetchInventarioPT(semana: number, anio: number, grupo?: string) {
-  let query = supabase.from('inventario_pt').select('*').in('semana', [0, semana]).in('anio', [0, anio]);
-  if (grupo) query = query.ilike('grupo', `${grupo}%`);
-  const { data: invDataRaw, error } = await query;
-  if (error) throw error;
-
-  // Filtrar los fijos vs los de la semana
-  const invData = invDataRaw?.filter(i => i.semana === semana && i.anio === anio) || [];
-  const fijosData = invDataRaw?.filter(i => i.semana === 0 && i.anio === 0) || [];
-
-  // 2. Fechas de la semana para filtrar produccion y despachos
+export async function fetchInventarioPT(semana: number, anio: number, grupoFiltro?: string) {
+  // 1. Fechas de la semana
   const fechas = getFechasSemana(semana, anio);
   const fechaDesde = fechas[0];
   const fechaHasta = fechas[6];
 
-  // 3. Producción (Entregada)
+  // 2. Fetch Saldo Base Fijo (semana 0)
+  const { data: fijosDataRaw } = await supabase.from('inventario_pt').select('*').eq('semana', 0).eq('anio', 0);
+  const fijosData = fijosDataRaw || [];
+
+  // 3. Fetch All-Time History up to fechaHasta
+  // Producción
   const { data: prodData } = await supabase.from('produccion')
-    .select('bultos_entregados, programacion!inner(lote, codigo_sap, cliente_id, observaciones)')
-    .gte('fecha_produccion', fechaDesde)
+    .select('fecha_produccion, bultos_entregados, programacion!inner(lote, codigo_sap, cliente_id, observaciones)')
     .lte('fecha_produccion', fechaHasta);
 
-  // 4. Despachos
-  // Para los despachos, cruzamos con despachos y programacion
+  // Despachos
   const { data: despData } = await supabase.from('despachos')
-    .select('lote, bultos_despachados, cliente_id, fecha')
-    .gte('fecha', fechaDesde)
+    .select('fecha, bultos_despachados, cliente_id, programacion!inner(lote, codigo_sap, cliente_id, observaciones)')
     .lte('fecha', fechaHasta);
-    
-  // Need to get sap codes for despachos, so we fetch programacion again for those lotes
-  const lotesDespacho = Array.from(new Set((despData || []).map(d => d.lote).filter(Boolean)));
-  let progMap = new Map<number, { codigo_sap: number; cliente_id: number; observaciones?: string }>();
-  if (lotesDespacho.length > 0) {
-    const { data: progDesp } = await supabase.from('programacion').select('lote, codigo_sap, cliente_id, observaciones').in('lote', lotesDespacho);
-    for (const p of (progDesp || [])) {
-      if (p.lote) progMap.set(p.lote, p);
-    }
-  }
+
+  // Reprocesos
+  const { data: repData } = await supabase.from('reprocesos_pt')
+    .select('fecha, grupo, codigo_sap, cantidad')
+    .lte('fecha', fechaHasta);
+
+  // Préstamos
+  const { data: prestData } = await supabase.from('prestamos_inventario')
+    .select('created_at, grupo_origen, grupo_destino, codigo_sap, cantidad, cantidad_compensada, estado')
+    .lte('created_at', fechaHasta + 'T23:59:59.999Z');
 
   // Pre-cargar caches para resolver grupos
   await ensureCaches();
   const clienteGrupoMap = await getClienteGrupoMap();
 
-  // Acumular Reprocesos
-  const { data: repData } = await supabase.from('reprocesos_pt')
-    .select('grupo, codigo_sap, cantidad')
-    .eq('semana', semana).eq('anio', anio);
-  const repAcum = new Map<string, number>();
-  for (const r of (repData || [])) {
-    const key = `${r.grupo}|${r.codigo_sap}`;
-    repAcum.set(key, (repAcum.get(key) || 0) + (r.cantidad || 0));
+  // Diccionario para acumular: { [grupo|sap]: { inicial, producido, despachado, reproceso, prestado, recibido } }
+  const acumMap = new Map<string, { inicial: number, producido: number, despachado: number, reproceso: number, prestado: number, recibido: number, isFijo: boolean }>();
+
+  const getAcum = (key: string) => {
+    if (!acumMap.has(key)) acumMap.set(key, { inicial: 0, producido: 0, despachado: 0, reproceso: 0, prestado: 0, recibido: 0, isFijo: false });
+    return acumMap.get(key)!;
+  };
+
+  // Base fija
+  for (const f of fijosData) {
+    const key = `${f.grupo}|${f.codigo_sap}`;
+    const ac = getAcum(key);
+    ac.inicial += (f.inventario_inicial || 0);
+    ac.isFijo = true;
   }
 
-  // Acumular Préstamos (resta a origen, suma a destino)
-  // Actually, we should fetch all PENDIENTE and PARCIAL prestamos
-  const { data: prestActivos } = await supabase.from('prestamos_inventario')
-    .select('grupo_origen, grupo_destino, codigo_sap, cantidad, cantidad_compensada')
-    .in('estado', ['PENDIENTE', 'PARCIAL']);
-    
-  const prestDadosAcum = new Map<string, number>(); // resta
-  const prestRecibidosAcum = new Map<string, number>(); // suma
-  for (const p of (prestActivos || [])) {
-    const pendiente = p.cantidad - (p.cantidad_compensada || 0);
-    if (pendiente > 0) {
-      const kOrig = `${p.grupo_origen}|${p.codigo_sap}`;
-      const kDest = `${p.grupo_destino}|${p.codigo_sap}`;
-      prestDadosAcum.set(kOrig, (prestDadosAcum.get(kOrig) || 0) + pendiente);
-      prestRecibidosAcum.set(kDest, (prestRecibidosAcum.get(kDest) || 0) + pendiente);
-    }
-  }
-
-  // Acumular Produccion
-  const prodAcum = new Map<string, number>();
+  // Acumular Producción
   for (const p of (prodData || [])) {
     const prog = Array.isArray(p.programacion) ? p.programacion[0] : p.programacion;
     if (!prog) continue;
     const g = resolveGrupo(prog.cliente_id, clienteGrupoMap, prog.observaciones);
     if (!g) continue;
     const key = `${g}|${prog.codigo_sap}`;
-    prodAcum.set(key, (prodAcum.get(key) || 0) + (p.bultos_entregados || 0));
+    const ac = getAcum(key);
+    
+    if (p.fecha_produccion < fechaDesde) ac.inicial += (p.bultos_entregados || 0);
+    else ac.producido += (p.bultos_entregados || 0);
   }
 
-  const despAcum = new Map<string, number>();
+  // Acumular Despachos
   for (const d of (despData || [])) {
-    if (!d.lote) continue;
-    const prog = progMap.get(d.lote);
+    const prog = Array.isArray(d.programacion) ? d.programacion[0] : d.programacion;
     if (!prog) continue;
-    const g = resolveGrupo(prog.cliente_id, clienteGrupoMap, prog.observaciones);
+    // Usar cliente_id del despacho. Si no existe, usar el de la programación
+    const g = resolveGrupo(d.cliente_id, clienteGrupoMap) || resolveGrupo(prog.cliente_id, clienteGrupoMap, prog.observaciones);
     if (!g) continue;
     const key = `${g}|${prog.codigo_sap}`;
-    despAcum.set(key, (despAcum.get(key) || 0) + (d.bultos_despachados || 0));
+    const ac = getAcum(key);
+    
+    if (d.fecha < fechaDesde) ac.inicial -= (d.bultos_despachados || 0);
+    else ac.despachado += (d.bultos_despachados || 0);
   }
 
-  // 5. Programado (Solicitudes de Venta)
-  const { data: solData } = await supabase.from('ventas_solicitudes')
-    .select('codigo_sap, cliente_id, casas_formuladoras(nombre), observaciones')
-    .eq('semana', semana)
-    .gte('fecha', fechaDesde)
-    .lte('fecha', fechaHasta);
-
-  // 6. Programado (Órdenes de Producción Activas recientes)
-  const dAnterior = new Date(fechaDesde);
-  dAnterior.setDate(dAnterior.getDate() - 14); // 2 semanas atrás
-  const fechaDosSemanasAtras = dAnterior.toISOString().split('T')[0];
-
-  const { data: opsData } = await supabase.from('programacion')
-    .select('codigo_sap, cliente_id, observaciones')
-    .gte('fecha', fechaDosSemanasAtras)
-    .lte('fecha', fechaHasta);
-
-  // Combinar todos los keys (de invData, fijosData, prodAcum, despAcum, solData, opsData)
-  const allKeys = new Set<string>();
-  
-  for (const s of (solData || [])) {
-    const c = s.casas_formuladoras as any;
-    const cName = Array.isArray(c) ? c[0]?.nombre : c?.nombre;
-    const g = resolveGrupo(s.cliente_id, clienteGrupoMap, s.observaciones, cName);
-    if (g) allKeys.add(`${g}|${s.codigo_sap}`);
+  // Acumular Reprocesos
+  for (const r of (repData || [])) {
+    const key = `${r.grupo}|${r.codigo_sap}`;
+    const ac = getAcum(key);
+    if (r.fecha < fechaDesde) ac.inicial -= (r.cantidad || 0);
+    else ac.reproceso += (r.cantidad || 0);
   }
 
-  for (const op of (opsData || [])) {
-    const g = resolveGrupo(op.cliente_id, clienteGrupoMap, op.observaciones);
-    if (g) allKeys.add(`${g}|${op.codigo_sap}`);
+  // Acumular Préstamos Activos e Históricos
+  for (const p of (prestData || [])) {
+    const dateStr = p.created_at?.split('T')[0] || '';
+    const pendiente = p.cantidad - (p.cantidad_compensada || 0);
+    if (pendiente > 0) { // Solo restamos el saldo pendiente no compensado
+      const kOrig = `${p.grupo_origen}|${p.codigo_sap}`;
+      const kDest = `${p.grupo_destino}|${p.codigo_sap}`;
+      
+      const acOrig = getAcum(kOrig);
+      const acDest = getAcum(kDest);
+
+      if (dateStr < fechaDesde) {
+        acOrig.inicial -= pendiente;
+        acDest.inicial += pendiente;
+      } else {
+        acOrig.prestado += pendiente;
+        acDest.recibido += pendiente;
+      }
+    }
   }
 
-  for (const f of fijosData) {
-    allKeys.add(`${f.grupo}|${f.codigo_sap}`);
-  }
-
-  const invMap = new Map<string, any>();
-  const fijosMap = new Map<string, boolean>();
-  
-  for (const f of fijosData) {
-    fijosMap.set(`${f.grupo}|${f.codigo_sap}`, true);
-  }
-  for (const i of (invData || [])) {
-    const key = `${i.grupo}|${i.codigo_sap}`;
-    allKeys.add(key);
-    invMap.set(key, i);
-  }
-  for (const k of prodAcum.keys()) allKeys.add(k);
-  for (const k of despAcum.keys()) allKeys.add(k);
-  for (const k of repAcum.keys()) allKeys.add(k);
-  for (const k of prestDadosAcum.keys()) allKeys.add(k);
-  for (const k of prestRecibidosAcum.keys()) allKeys.add(k);
-
-  // Merge results
-  const results = Array.from(allKeys).map(key => {
+  // Convert to array and calculate saldo
+  const results = Array.from(acumMap.entries()).map(([key, ac]) => {
     const lastPipe = key.lastIndexOf('|');
     const grp = key.substring(0, lastPipe);
-    const sapStr = key.substring(lastPipe + 1);
-    const sap = parseInt(sapStr);
+    const sap = parseInt(key.substring(lastPipe + 1));
     
-    // Si filtra por un grupo específico en la llamada, comparamos con la base del grupo
-    const baseGrp = grp.split('|')[0];
-    if (grupo && baseGrp !== grupo) return null;
+    if (grupoFiltro && grp.split('|')[0] !== grupoFiltro) return null;
 
-    const i = invMap.get(key);
-    const inicial = i ? i.inventario_inicial : 0;
-    const producido = prodAcum.get(key) || 0;
-    const despachado = despAcum.get(key) || 0;
-    const reproceso = repAcum.get(key) || 0;
-    const prestado = prestDadosAcum.get(key) || 0;
-    const recibido = prestRecibidosAcum.get(key) || 0;
-    const saldo_actual = inicial + producido - despachado - reproceso - prestado + recibido;
+    const saldo_actual = ac.inicial + ac.producido - ac.despachado - ac.reproceso - ac.prestado + ac.recibido;
 
     return {
       grupo: grp,
       codigo_sap: sap,
-      semana: i ? i.semana : semana,
-      anio: i ? i.anio : anio,
-      inventario_inicial: inicial,
-      producido,
-      despachado,
+      semana,
+      anio,
+      inventario_inicial: ac.inicial,
+      producido: ac.producido,
+      despachado: ac.despachado,
+      prestado: ac.prestado,
+      recibido: ac.recibido,
+      reproceso: ac.reproceso,
       saldo_actual,
-      isFijo: fijosMap.get(key) || false
+      isFijo: ac.isFijo
     };
-  }).filter(Boolean);
+  }).filter((x): x is NonNullable<typeof x> => Boolean(x));
   
-  // Sort
-  return results.sort((a: any, b: any) => a.grupo.localeCompare(b.grupo));
+  // Sort and return
+  return results.sort((a, b) => a.grupo.localeCompare(b.grupo));
 }
 
 export async function upsertInventarioPT(row: { grupo: string; codigo_sap: number; semana: number; anio: number; inventario_inicial: number; lote?: string; observaciones?: string }) {
@@ -1034,7 +1138,7 @@ export async function fetchDetallesMovimientosPT(semana: number, anio: number, g
 
   // 1. OPs de Producción
   const { data: prodData } = await supabase.from('produccion')
-    .select('id, bultos_entregados, fecha_produccion, turno, lote, observaciones, programacion!inner(lote, codigo_sap, cliente_id)')
+    .select('id, bultos_entregados, fecha_produccion, turno, lote, observaciones, programacion!inner(lote, codigo_sap, cliente_id, observaciones)')
     .gte('fecha_produccion', fechaDesde)
     .lte('fecha_produccion', fechaHasta)
     .order('fecha_produccion', { ascending: false });
@@ -1042,21 +1146,21 @@ export async function fetchDetallesMovimientosPT(semana: number, anio: number, g
   const produccion = (prodData || []).filter(p => {
     const prog = Array.isArray(p.programacion) ? p.programacion[0] : p.programacion;
     if (!prog || prog.codigo_sap !== codigo_sap) return false;
-    const g = clienteGrupoMap.get(prog.cliente_id);
-    return g === grupo || (grupo.startsWith('CERDOS VARIOS') && g === 'CERDOS VARIOS');
+    const resolvedG = resolveGrupo(prog.cliente_id, clienteGrupoMap, prog.observaciones);
+    return resolvedG === grupo;
   });
 
   // 2. Despachos
   const { data: despData } = await supabase.from('despachos')
-    .select('id, lote, bultos_despachados, fecha, num_remision, maestro_vehiculos(placa)')
+    .select('id, lote, bultos_despachados, fecha, num_remision, cliente_id, maestro_vehiculos(placa)')
     .gte('fecha', fechaDesde)
     .lte('fecha', fechaHasta)
     .order('fecha', { ascending: false });
 
   const lotesDespacho = Array.from(new Set((despData || []).map(d => d.lote).filter(Boolean)));
-  let progMap = new Map<number, { codigo_sap: number; cliente_id: number }>();
+  let progMap = new Map<number, { codigo_sap: number; cliente_id: number; observaciones: string | null }>();
   if (lotesDespacho.length > 0) {
-    const { data: progDesp } = await supabase.from('programacion').select('lote, codigo_sap, cliente_id').in('lote', lotesDespacho);
+    const { data: progDesp } = await supabase.from('programacion').select('lote, codigo_sap, cliente_id, observaciones').in('lote', lotesDespacho);
     for (const p of (progDesp || [])) {
       if (p.lote) progMap.set(p.lote, p);
     }
@@ -1066,8 +1170,8 @@ export async function fetchDetallesMovimientosPT(semana: number, anio: number, g
     if (!d.lote) return false;
     const prog = progMap.get(d.lote);
     if (!prog || prog.codigo_sap !== codigo_sap) return false;
-    const g = clienteGrupoMap.get(prog.cliente_id);
-    return g === grupo || (grupo.startsWith('CERDOS VARIOS') && g === 'CERDOS VARIOS');
+    const resolvedG = resolveGrupo(d.cliente_id, clienteGrupoMap) || resolveGrupo(prog.cliente_id, clienteGrupoMap, prog.observaciones || undefined);
+    return resolvedG === grupo;
   }).map(d => {
     const vehiculo = Array.isArray(d.maestro_vehiculos) ? d.maestro_vehiculos[0] : d.maestro_vehiculos;
     return {
@@ -1079,7 +1183,93 @@ export async function fetchDetallesMovimientosPT(semana: number, anio: number, g
     };
   });
 
-  return { produccion, despachos };
+  // 3. Préstamos
+  const { data: prestData } = await supabase.from('prestamos_inventario')
+    .select('created_at, grupo_origen, grupo_destino, cantidad, estado, motivo, cantidad_compensada, compensado_at')
+    .eq('codigo_sap', codigo_sap)
+    .gte('created_at', fechaDesde)
+    .lte('created_at', fechaHasta + 'T23:59:59.999Z')
+    .order('created_at', { ascending: false });
+
+  const prestamos = (prestData || []).filter(p => p.grupo_origen === grupo || p.grupo_destino === grupo).map(p => ({
+    fecha: p.created_at.split('T')[0],
+    tipo: (p.grupo_origen === grupo ? 'PRESTADO' : 'RECIBIDO') as 'PRESTADO' | 'RECIBIDO',
+    contraparte: p.grupo_origen === grupo ? p.grupo_destino : p.grupo_origen,
+    cantidad: p.cantidad,
+    estado: p.estado,
+    motivo: p.motivo,
+    cantidad_compensada: p.cantidad_compensada || 0,
+    compensado_at: p.compensado_at ? p.compensado_at.split('T')[0] : null
+  }));
+
+  // 4. Reprocesos
+  const { data: repData } = await supabase.from('reprocesos_pt')
+    .select('fecha, cantidad, motivo')
+    .eq('grupo', grupo)
+    .eq('codigo_sap', codigo_sap)
+    .gte('fecha', fechaDesde)
+    .lte('fecha', fechaHasta)
+    .order('fecha', { ascending: false });
+
+  const reprocesos = (repData || []).map(r => ({
+    fecha: r.fecha,
+    cantidad: r.cantidad,
+    motivo: r.motivo || ''
+  }));
+
+  // 5. Saldos Anteriores (OPs producidas antes de fechaDesde que aún tienen saldo)
+  const { data: prodAntData } = await supabase.from('produccion')
+    .select('bultos_entregados, fecha_produccion, lote, programacion!inner(codigo_sap, cliente_id, observaciones)')
+    .lt('fecha_produccion', fechaDesde);
+
+  const opsAnteriores = (prodAntData || []).filter(p => {
+    const prog = Array.isArray(p.programacion) ? p.programacion[0] : p.programacion;
+    if (!prog || prog.codigo_sap !== codigo_sap) return false;
+    const resolvedG = resolveGrupo(prog.cliente_id, clienteGrupoMap, prog.observaciones);
+    return resolvedG === grupo;
+  });
+
+  const lotesAnteriores = Array.from(new Set(opsAnteriores.map(p => p.lote)));
+  let saldos_anteriores: { lote: string | number; fecha: string; bultos: number }[] = [];
+
+  if (lotesAnteriores.length > 0) {
+    const [{ data: despAnt }, { data: prestAnt }] = await Promise.all([
+      supabase.from('despachos').select('lote, bultos_despachados').in('lote', lotesAnteriores).lt('fecha', fechaDesde),
+      supabase.from('prestamos_inventario').select('cantidad, motivo').lt('created_at', fechaDesde)
+    ]);
+
+    const saldoMap = new Map<string | number, { bultos: number; fecha: string }>();
+    
+    for (const p of opsAnteriores) {
+      if (!saldoMap.has(p.lote)) {
+        saldoMap.set(p.lote, { bultos: 0, fecha: p.fecha_produccion });
+      }
+      saldoMap.get(p.lote)!.bultos += (p.bultos_entregados || 0);
+    }
+    
+    for (const d of (despAnt || [])) {
+      if (d.lote && saldoMap.has(d.lote)) {
+        saldoMap.get(d.lote)!.bultos -= (d.bultos_despachados || 0);
+      }
+    }
+    
+    for (const p of (prestAnt || [])) {
+      if (p.motivo && p.motivo.includes('OP ')) {
+        for (const lote of lotesAnteriores) {
+          if (p.motivo.includes(`OP ${lote}`)) {
+            saldoMap.get(lote)!.bultos -= (p.cantidad || 0);
+          }
+        }
+      }
+    }
+
+    saldos_anteriores = Array.from(saldoMap.entries())
+      .filter(([_, data]) => data.bultos > 0)
+      .map(([lote, data]) => ({ lote, fecha: data.fecha, bultos: data.bultos }))
+      .sort((a, b) => b.fecha.localeCompare(a.fecha));
+  }
+
+  return { produccion, despachos, prestamos, reprocesos, saldos_anteriores };
 }
 
 // ═══════════ GRUPOS DE INVENTARIO ═══════════
@@ -1116,7 +1306,7 @@ export async function fetchGruposInventario(): Promise<string[]> {
     .select('cliente_id, casas_formuladoras(nombre), observaciones')
     .limit(5000);
   for (const s of (solData || [])) {
-    const c = s.casas_formuladoras as any;
+    const c = s.casas_formuladoras as { id?: number; nombre?: string; activo?: boolean } | null;
     const cName = Array.isArray(c) ? c[0]?.nombre : c?.nombre;
     const g = resolveGrupo(s.cliente_id, clienteGrupoMap, s.observaciones, cName);
     if (g) grupos.add(g.split('|')[0]);
@@ -1133,4 +1323,71 @@ export async function fetchGruposInventario(): Promise<string[]> {
   }
 
   return Array.from(grupos).sort();
+}
+
+// ═══════════ REPROCESOS AVANZADOS ═══════════
+
+export async function reversarReproceso(reprocesoId: number, motivo: string) {
+  // Extract OP from motivo
+  const match = motivo.match(/OP (\d+)/);
+  if (!match) throw new Error('No se pudo determinar la OP origen de este reproceso.');
+  const opLote = match[1];
+
+  // Verify if it has been consumed in produccion
+  const { data: consumo } = await supabase.from('produccion')
+    .select('id')
+    .ilike('op_reproceso_origen', `%OP ${opLote}%`)
+    .limit(1);
+
+  if (consumo && consumo.length > 0) {
+    throw new Error(`Este reproceso no puede ser eliminado porque los bultos de la OP ${opLote} ya fueron utilizados en una nueva producción.`);
+  }
+
+  // Safe to delete
+  const { error } = await supabase.from('reprocesos_pt').delete().eq('id', reprocesoId);
+  if (error) throw error;
+  
+  await registrarAuditoria('DELETE', 'Reproceso PT', `Se reversó el reproceso de la OP ${opLote} (${motivo})`);
+}
+
+export async function getBolsaReprocesosDisponibles() {
+  const [{ data: repData }, { data: prodData }] = await Promise.all([
+    supabase.from('reprocesos_pt').select('motivo, cantidad, codigo_sap, grupo'),
+    supabase.from('produccion').select('bultos_reproceso, op_reproceso_origen').gt('bultos_reproceso', 0)
+  ]);
+
+  const opsMap = new Map<string, { lote: string, codigo_sap: number, alimento: string, grupo: string, enviado: number, consumido: number }>();
+
+  // Acumular enviados
+  for (const r of (repData || [])) {
+    const match = r.motivo?.match(/OP (\d+)/);
+    if (!match) continue;
+    const lote = match[1];
+    
+    if (!opsMap.has(lote)) {
+      opsMap.set(lote, { lote, codigo_sap: r.codigo_sap, alimento: '', grupo: r.grupo, enviado: 0, consumido: 0 });
+    }
+    opsMap.get(lote)!.enviado += (r.cantidad || 0);
+  }
+
+  // Acumular consumidos
+  for (const p of (prodData || [])) {
+    if (!p.op_reproceso_origen) continue;
+    
+    // Asumiremos que si consumen, solo pueden consumir de una OP según el dropdown.
+    // Si tienen varias (texto libre antiguo), no podemos mapear con exactitud la cantidad.
+    // Para simplificar, buscaremos si el op_reproceso_origen de produccion coincide con un lote.
+    const match = p.op_reproceso_origen.match(/OP (\d+)/);
+    if (match) {
+      const lote = match[1];
+      if (opsMap.has(lote)) {
+        opsMap.get(lote)!.consumido += (p.bultos_reproceso || 0);
+      }
+    }
+  }
+
+  return Array.from(opsMap.values())
+    .map(o => ({ ...o, disponible: o.enviado - o.consumido }))
+    .filter(o => o.disponible > 0)
+    .sort((a, b) => b.disponible - a.disponible);
 }

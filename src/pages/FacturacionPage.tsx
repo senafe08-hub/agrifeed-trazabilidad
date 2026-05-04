@@ -7,7 +7,7 @@ import CarteraLiberacion from './facturacion/CarteraLiberacion';
 import AsignacionFactura from './facturacion/AsignacionFactura';
 import HistoricoFacturacion from './facturacion/HistoricoFacturacion';
 import DashboardCartera from './facturacion/DashboardCartera';
-import Toast from '../components/Toast';
+
 import { usePermissions, FacturacionTab } from '../lib/permissions';
 import '../styles/facturacion.css';
 
@@ -153,7 +153,7 @@ export default function FacturacionPage() {
       {activeTab === 'historico' && <HistoricoFacturacion onRefreshKpis={handleRefreshKpis} isAdmin={isAdmin} canEdit={allowedEditTabs.includes('historico')} userRole={userRole} />}
       {activeTab === 'dashboard_cartera' && <DashboardCartera />}
 
-      <Toast />
+
     </div>
   );
 }

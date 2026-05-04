@@ -1,169 +1,89 @@
-import { useState, useEffect, Fragment } from 'react';
+import { Fragment, useState, useEffect, useMemo } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Plus, Search, Edit2, Trash2, ChevronLeft, ChevronRight, Factory, RefreshCw, ChevronDown, ChevronUp, CalendarDays } from 'lucide-react';
-import { usePermissions } from '../lib/permissions';
-import supabase from '../lib/supabase';
 import SolicitudModal from '../components/SolicitudModal';
-import {
-  fetchCasasFormuladoras, fetchSolicitudes,
-  calcularVistaSemanal, ejecutarMRP, crearPropuestaOP,
-  calcularSemanaISO, calcularDiaSemana,
-  type CasaFormuladora, type VentaSolicitud, type VistaSemanalRow, type MRPRow
-} from '../lib/api/ventas';
+import { crearPropuestaOP } from '../lib/api/ventas';
+import { useVentas, getSemanaActual } from '../hooks/useVentas';
 
 const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
-
-import { getISOWeek } from 'date-fns';
-
-function getSemanaActual() {
-  const d = new Date();
-  return { semana: getISOWeek(d), anio: d.getFullYear() };
-}
-
 export default function VentasPage() {
-  const { canView, canEdit } = usePermissions('ventas');
-  const [activeTab, setActiveTab] = useState('solicitudes');
-  const [loading, setLoading] = useState(false);
+  const {
+    canView, canEdit,
+    activeTab, setActiveTab,
+    loading,
+    semana, setSemana,
+    anio, setAnio,
+    alimentos, clientes, casas, materiasPrimas,
+    solicitudModalData,
+    showForm, setShowForm,
+    expandedDays,
+    deleteConfirm, setDeleteConfirm,
+    reprogramarData, setReprogramarData,
+    nuevaFecha, setNuevaFecha,
+    searchTerm, setSearchTerm,
+    vistaSemanal,
+    mrpData,
+    propuestaModal, setPropuestaModal,
+    bulkPropuestaModal, setBulkPropuestaModal,
+    bachesCustom, setBachesCustom,
+    sacosCustom, setSacosCustom,
+    expandedMrpRow, setExpandedMrpRow,
+    mrpSearchTerm, setMrpSearchTerm,
+    selectedMrpRows, setSelectedMrpRows,
+    loadTabData, handleOpenForm, handleDelete, handleReprogramar,
+    toggleDay, cambiarSemana,
+    filteredSol, totalBultosSemana,
+    filteredMrpData
+  } = useVentas();
 
-  // Semana selector
-  const [semana, setSemana] = useState(getSemanaActual().semana);
-  const [anio, setAnio] = useState(getSemanaActual().anio);
+  const [bulkData, setBulkData] = useState<Array<{
+    mrp: any;
+    sacos: number | '';
+    baches: number;
+  }>>([]);
+  const [isSubmittingBulk, setIsSubmittingBulk] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{ current: number, total: number } | null>(null);
 
-  // Maestros
-  const [casas, setCasas] = useState<CasaFormuladora[]>([]);
-  const [clientes, setClientes] = useState<any[]>([]);
-  const [alimentos, setAlimentos] = useState<any[]>([]);
-  const [materiasPrimas, setMateriasPrimas] = useState<any[]>([]);
-
-  // Tab 1 - Solicitudes
-  const [solicitudes, setSolicitudes] = useState<VentaSolicitud[]>([]);
-  const [solicitudModalData, setSolicitudModalData] = useState<{ fecha: string, cliente_id: number | '', detalles: any[] } | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({});
-
-  const [deleteConfirm, setDeleteConfirm] = useState<{ fecha: string, cliente_id: number } | null>(null);
-  const [reprogramarData, setReprogramarData] = useState<{ fecha: string, cliente_id: number, nombreCliente: string } | null>(null);
-  const [nuevaFecha, setNuevaFecha] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-
-  // Tab 2 - Vista Semanal
-  const [vistaSemanal, setVistaSemanal] = useState<VistaSemanalRow[]>([]);
-
-  // Tab 3 - MRP
-  const [mrpData, setMrpData] = useState<MRPRow[]>([]);
-  const [propuestaModal, setPropuestaModal] = useState<MRPRow | null>(null);
-  const [bachesCustom, setBachesCustom] = useState<number>(0);
-  const [sacosCustom, setSacosCustom] = useState<number | ''>('');
-  const [expandedMrpRow, setExpandedMrpRow] = useState<number | null>(null);
-
-  useEffect(() => { loadMaestros(); }, []);
-  useEffect(() => { if (canView) loadTabData(); }, [activeTab, semana, anio]);
-
-  if (!canView) return <Navigate to="/" replace />;
-
-  async function loadMaestros() {
-    const results = await Promise.all([
-      fetchCasasFormuladoras(),
-      supabase.from('maestro_clientes').select('codigo_sap, nombre').order('nombre'),
-      supabase.from('maestro_alimentos').select('codigo_sap, descripcion').order('descripcion'),
-      supabase.from('inventario_materiales').select('id, codigo, nombre').order('nombre'),
-    ]);
-    setCasas(results[0]);
-    setClientes(results[1].data || []);
-    setAlimentos(results[2].data || []);
-    setMateriasPrimas(results[3].data || []);
-  }
-
-  async function loadTabData() {
-    setLoading(true);
-    try {
-      // Always load solicitudes (they're fast and needed by multiple tabs)
-      const solPromise = fetchSolicitudes(semana, anio);
-      
-      if (activeTab === 'solicitudes') {
-        const data = await solPromise;
-        setSolicitudes(data);
-      } else if (activeTab === 'vista_semanal') {
-        const [solData, vsData] = await Promise.all([
-          solPromise,
-          calcularVistaSemanal(semana, anio)
-        ]);
-        setSolicitudes(solData);
-        setVistaSemanal(vsData);
-      } else if (activeTab === 'mrp') {
-        const [solData, mrpResult] = await Promise.all([
-          solPromise,
-          ejecutarMRP(semana, anio)
-        ]);
-        setSolicitudes(solData);
-        setMrpData(mrpResult);
-      }
-    } catch (err: any) {
-      console.error(err);
-    }
-    setLoading(false);
-  }
-
-  function handleOpenForm(fecha?: string, cliente_id?: number, items?: any[]) {
-    if (fecha && cliente_id && items) {
-      setSolicitudModalData({ fecha, cliente_id, detalles: items });
-    } else {
-      setSolicitudModalData({ fecha: new Date().toISOString().split('T')[0], cliente_id: '', detalles: [] });
-    }
-    setShowForm(true);
-  }
-
-  async function handleDelete() {
-    if (!deleteConfirm) return;
-    try {
-      await supabase.from('ventas_solicitudes').delete()
-        .eq('fecha', deleteConfirm.fecha)
-        .eq('cliente_id', deleteConfirm.cliente_id);
-      loadTabData();
-    } catch (err: any) {
-      alert('Error eliminando: ' + err.message);
-    }
-    setDeleteConfirm(null);
-  }
-
-  async function handleReprogramar() {
-    if (!reprogramarData || !nuevaFecha) return;
-    if (nuevaFecha === reprogramarData.fecha) return alert('La nueva fecha es igual a la actual.');
-    try {
-      const newSemana = calcularSemanaISO(nuevaFecha);
-      const newDia = calcularDiaSemana(nuevaFecha);
-      const { error } = await supabase.from('ventas_solicitudes')
-        .update({ fecha: nuevaFecha, semana: newSemana, dia_semana: newDia })
-        .eq('fecha', reprogramarData.fecha)
-        .eq('cliente_id', reprogramarData.cliente_id);
-      if (error) throw error;
-      setReprogramarData(null);
-      setNuevaFecha('');
-      loadTabData();
-    } catch (err: any) {
-      alert('Error reprogramando: ' + err.message);
-    }
-  }
-
-  function toggleDay(dia: string) {
-    setExpandedDays(prev => ({ ...prev, [dia]: prev[dia] === false ? true : false }));
-  }
-
-  function cambiarSemana(delta: number) {
-    let s = semana + delta, a = anio;
-    if (s < 1) { s = 52; a--; }
-    if (s > 52) { s = 1; a++; }
-    setSemana(s); setAnio(a);
-  }
-
-  const filteredSol = solicitudes.filter(s => {
-    if (!searchTerm) return true;
-    const str = `${(s.maestro_clientes as any)?.nombre || ''} ${(s.maestro_alimentos as any)?.descripcion || ''} ${(s.casas_formuladoras as any)?.nombre || ''}`.toLowerCase();
-    return str.includes(searchTerm.toLowerCase());
+  // Filtros locales para Vista Semanal
+  const [filtroVSCliente, setFiltroVSCliente] = useState('');
+  const [filtroVSDias, setFiltroVSDias] = useState<Record<string, boolean>>({
+    'Lun': true, 'Mar': true, 'Mié': true, 'Jue': true, 'Vie': true, 'Sáb': true, 'Dom': true
   });
 
-  const totalBultosSemana = filteredSol.reduce((s, r) => s + r.cantidad, 0);
+  const filteredVistaSemanal = useMemo(() => {
+    return vistaSemanal.filter(r => {
+      // Búsqueda combinada en cliente y referencia
+      const matchText = !filtroVSCliente || 
+                        r.cliente.toLowerCase().includes(filtroVSCliente.toLowerCase()) || 
+                        r.referencia.toLowerCase().includes(filtroVSCliente.toLowerCase());
+      if (!matchText) return false;
+
+      // Filtrar por días: Si un día está marcado, la fila debe tener volumen en ESE día o en algún otro marcado.
+      // Si el cliente no tiene despachos en ninguno de los días seleccionados, se oculta.
+      const hasActivity = r.dias.some((val, idx) => filtroVSDias[DIAS[idx]] && val > 0);
+      const anyDaySelected = Object.values(filtroVSDias).some(v => v);
+      
+      return anyDaySelected && hasActivity;
+    });
+  }, [vistaSemanal, filtroVSCliente, filtroVSDias]);
+
+  useEffect(() => {
+    if (bulkPropuestaModal && bulkPropuestaModal.length > 0) {
+      setBulkData(bulkPropuestaModal.map(r => {
+        const initialSacos = Number(r.sacosPorBache) || 0;
+        return {
+          mrp: r,
+          sacos: initialSacos || '',
+          baches: r.bachesSugeridos || (initialSacos && r.necesidadNeta ? Math.ceil(r.necesidadNeta / initialSacos) : 0)
+        };
+      }));
+    } else {
+      setBulkData([]);
+    }
+  }, [bulkPropuestaModal]);
+
+  if (!canView) return <Navigate to="/" replace />;
 
   // ═══════════ RENDER ═══════════
 
@@ -293,7 +213,7 @@ export default function VentasPage() {
                         const clienteId = Number(cid);
                         const items = groupedByDia[dia][clienteId];
                         const totalCliente = items.reduce((acc, r) => acc + r.cantidad, 0);
-                        const nombreCliente = (items[0].maestro_clientes as any)?.nombre || `Cliente ${clienteId}`;
+                        const nombreCliente = (items[0].maestro_clientes as { nombre?: string })?.nombre || `Cliente ${clienteId}`;
 
                         return (
                           <div key={clienteId} style={{ borderRadius: 10, overflow: 'hidden', display: 'flex', flexDirection: 'column', background: 'var(--bg-surface)', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
@@ -329,11 +249,11 @@ export default function VentasPage() {
                               <tbody>
                                 {items.map((s, idx) => (
                                   <tr key={s.id} style={{ borderBottom: idx < items.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                                    <td style={{ padding: '10px 12px', fontWeight: 600, color: 'var(--text-primary)' }}>{(s.maestro_alimentos as any)?.descripcion || '—'}</td>
+                                    <td style={{ padding: '10px 12px', fontWeight: 600, color: 'var(--text-primary)' }}>{(s.maestro_alimentos as { descripcion?: string })?.descripcion || '—'}</td>
                                     <td style={{ padding: '10px 12px', color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '0.82rem' }}>{s.codigo_sap}</td>
                                     <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 800, color: 'var(--text-primary)', fontSize: '0.9rem' }}>{s.cantidad}</td>
                                     <td style={{ padding: '10px 12px', textAlign: 'right' }}>
-                                      <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 6, fontSize: '0.72rem', fontWeight: 600, background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0' }}>{(s.casas_formuladoras as any)?.nombre}</span>
+                                      <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 6, fontSize: '0.72rem', fontWeight: 600, background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0' }}>{(s.casas_formuladoras as { nombre?: string })?.nombre}</span>
                                     </td>
                                   </tr>
                                 ))}
@@ -359,38 +279,124 @@ export default function VentasPage() {
         </>
       )}
 
-      {/* ════════════════ TAB 2: VISTA SEMANAL ════════════════ */}
+      {/* ════════════════ TAB 2: VISTA SEMANAL (HEATMAP / OPTION 2) ════════════════ */}
       {activeTab === 'vista_semanal' && (
-        <div className="card">
-          <div className="card-body" style={{ padding: 0 }}>
-            <div className="data-table-wrapper">
-              <table className="data-table">
-                <thead>
+        <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+          {/* SIDEBAR FILTROS */}
+          <div className="card" style={{ width: '280px', flexShrink: 0, padding: '20px', position: 'sticky', top: '20px' }}>
+            <h3 style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Search size={16} style={{ color: '#3b82f6' }} /> Filtros
+            </h3>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase' }}>Buscar Cliente o Ref.</label>
+              <input type="text" value={filtroVSCliente} onChange={e => setFiltroVSCliente(e.target.value)} placeholder="Ej: Macpork" className="form-input" style={{ width: '100%', fontSize: '0.85rem' }} />
+            </div>
+
+            <hr style={{ borderColor: 'var(--border-color)', margin: '20px 0' }} />
+
+            <div>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '12px', textTransform: 'uppercase' }}>Días de la semana</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {DIAS.map(d => (
+                  <label key={d} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-primary)', fontWeight: filtroVSDias[d] ? 600 : 400 }}>
+                    <input 
+                      type="checkbox" 
+                      checked={filtroVSDias[d]} 
+                      onChange={e => setFiltroVSDias(prev => ({ ...prev, [d]: e.target.checked }))}
+                      style={{ width: '16px', height: '16px', borderRadius: '4px', cursor: 'pointer', accentColor: '#3b82f6' }}
+                    />
+                    {d === 'Mié' ? 'Miércoles' : d === 'Sáb' ? 'Sábado' : d === 'Lun' ? 'Lunes' : d === 'Mar' ? 'Martes' : d === 'Jue' ? 'Jueves' : d === 'Vie' ? 'Viernes' : 'Domingo'}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* MATRIZ HEATMAP */}
+          <div className="card" style={{ flex: 1, padding: 0, overflow: 'hidden' }}>
+            <div className="data-table-wrapper" style={{ maxHeight: 'calc(100vh - 180px)', overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-surface)', zIndex: 10, boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
                   <tr>
-                    <th>Cliente</th><th>Referencia</th><th>Casa</th>
-                    {DIAS.map(d => <th key={d} style={{ textAlign: 'center', width: 70 }}>{d}</th>)}
-                    <th style={{ textAlign: 'right', fontWeight: 800, width: 80 }}>Total</th>
+                    <th style={{ padding: '16px', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)' }}>Destino / Referencia</th>
+                    {DIAS.map(d => filtroVSDias[d] && (
+                      <th key={d} style={{ padding: '16px 8px', textAlign: 'center', width: '80px', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)' }}>{d}</th>
+                    ))}
+                    <th style={{ padding: '16px', textAlign: 'right', width: '100px', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border-color)' }}>Total</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {loading ? <tr><td colSpan={11} style={{ textAlign: 'center', padding: 30 }}>Calculando vista semanal...</td></tr> :
-                  vistaSemanal.length === 0 ? <tr><td colSpan={11} style={{ textAlign: 'center', padding: 30 }}>Sin solicitudes esta semana.</td></tr> :
-                  vistaSemanal.map((r, i) => (
-                    <tr key={i}>
-                      <td style={{ fontWeight: 600 }}>{r.cliente}</td>
-                      <td>{r.referencia}</td>
-                      <td><span className="badge badge-success">{r.casa}</span></td>
-                      {r.dias.map((v, j) => <td key={j} style={{ textAlign: 'center', fontWeight: v > 0 ? 700 : 400, color: v > 0 ? '#1e293b' : '#cbd5e1' }}>{v || '—'}</td>)}
-                      <td style={{ textAlign: 'right', fontWeight: 800, fontSize: '1rem' }}>{r.total}</td>
+                <tbody style={{ background: 'var(--bg-app)' }}>
+                  {loading ? <tr><td colSpan={10} style={{ textAlign: 'center', padding: 60 }}><RefreshCw className="spinning" size={32} style={{ color: '#3b82f6', margin: '0 auto 16px auto' }}/><div style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Calculando matriz...</div></td></tr> :
+                  filteredVistaSemanal.length === 0 ? <tr><td colSpan={10} style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)', background: 'var(--bg-surface)' }}><div style={{ fontSize: '2rem', marginBottom: '12px' }}>📊</div><div style={{ fontWeight: 600 }}>Sin resultados para estos filtros.</div></td></tr> :
+                  filteredVistaSemanal.map((r, i) => {
+                    const maxRowValue = Math.max(...r.dias);
+                    const totalFiltrado = r.dias.reduce((sum, val, idx) => filtroVSDias[DIAS[idx]] ? sum + val : sum, 0);
+
+                    return (
+                    <tr key={i} style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border-color)', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface-hover)'} onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-surface)'}>
+                      <td style={{ padding: '16px' }}>
+                        <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {r.cliente}
+                          <span style={{ padding: '2px 8px', borderRadius: '12px', background: 'var(--bg-tertiary)', color: 'var(--text-muted)', fontSize: '0.65rem', fontWeight: 700 }}>{r.casa}</span>
+                        </div>
+                        <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 600, marginTop: '4px' }}>{r.referencia}</div>
+                      </td>
+                      {r.dias.map((v, j) => {
+                        const dia = DIAS[j];
+                        if (!filtroVSDias[dia]) return null;
+
+                        const intensity = v > 0 ? (maxRowValue > 0 ? (v / maxRowValue) : 0) : 0;
+                        return (
+                          <td key={j} style={{ padding: '8px' }}>
+                            {v > 0 ? (
+                              <div style={{ 
+                                width: '100%', 
+                                height: '42px', 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center', 
+                                borderRadius: '6px', 
+                                background: `rgba(59, 130, 246, ${0.15 + (intensity * 0.4)})`, 
+                                color: intensity > 0.5 ? '#1e3a8a' : '#2563eb', 
+                                fontWeight: 800, 
+                                fontSize: '0.9rem',
+                                border: `1px solid rgba(59, 130, 246, ${0.3 + (intensity * 0.4)})`
+                              }}>
+                                {v}
+                              </div>
+                            ) : (
+                              <div style={{ width: '100%', height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', opacity: 0.5, fontSize: '0.85rem', background: 'var(--bg-app)', borderRadius: '6px' }}>—</div>
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td style={{ padding: '16px', textAlign: 'right', fontWeight: 800, fontSize: '1.1rem', color: 'var(--text-primary)' }}>
+                        {totalFiltrado}
+                      </td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
-                {vistaSemanal.length > 0 && (
-                  <tfoot>
-                    <tr style={{ fontWeight: 800, background: '#f8fafc' }}>
-                      <td colSpan={3}>TOTAL SEMANA</td>
-                      {DIAS.map((_, j) => <td key={j} style={{ textAlign: 'center' }}>{vistaSemanal.reduce((s, r) => s + r.dias[j], 0) || '—'}</td>)}
-                      <td style={{ textAlign: 'right', fontSize: '1.1rem' }}>{vistaSemanal.reduce((s, r) => s + r.total, 0).toLocaleString()}</td>
+                {filteredVistaSemanal.length > 0 && (
+                  <tfoot style={{ position: 'sticky', bottom: 0, background: 'var(--bg-surface)', zIndex: 10, boxShadow: '0 -1px 2px rgba(0,0,0,0.05)' }}>
+                    <tr>
+                      <td style={{ padding: '16px', fontWeight: 800, color: 'var(--text-primary)', fontSize: '0.85rem', borderTop: '1px solid var(--border-color)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>TOTAL SEMANA FILTRADA</td>
+                      {DIAS.map((_, j) => {
+                        const dia = DIAS[j];
+                        if (!filtroVSDias[dia]) return null;
+                        const totalDia = filteredVistaSemanal.reduce((s, r) => s + r.dias[j], 0);
+                        return (
+                          <td key={j} style={{ padding: '16px 8px', textAlign: 'center', fontWeight: 800, color: totalDia > 0 ? '#2563eb' : 'var(--text-muted)', borderTop: '1px solid var(--border-color)', fontSize: '0.95rem' }}>
+                            {totalDia || '—'}
+                          </td>
+                        );
+                      })}
+                      <td style={{ padding: '16px', textAlign: 'right', fontWeight: 900, fontSize: '1.25rem', color: 'var(--text-primary)', borderTop: '1px solid var(--border-color)' }}>
+                        {filteredVistaSemanal.reduce((sum, r) => {
+                          const tf = r.dias.reduce((s, v, j) => filtroVSDias[DIAS[j]] ? s + v : s, 0);
+                          return sum + tf;
+                        }, 0).toLocaleString()}
+                      </td>
                     </tr>
                   </tfoot>
                 )}
@@ -403,17 +409,64 @@ export default function VentasPage() {
       {/* ════════════════ TAB 3: MRP & SUFICIENCIA ════════════════ */}
       {activeTab === 'mrp' && (
         <div className="card">
-          <div className="card-header">
-            <span className="card-title">Motor MRP — Semana {semana}</span>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              {mrpData.filter(r => r.necesidadNeta > 0).length} con necesidad · {mrpData.filter(r => r.estado === 'ALCANZA').length} al día
-            </span>
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <span className="card-title">Motor MRP — Semana {semana}</span>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                {filteredMrpData.filter(r => r.necesidadNeta > 0).length} con necesidad · {filteredMrpData.filter(r => r.estado === 'ALCANZA').length} al día
+              </div>
+            </div>
+            
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              {selectedMrpRows.size > 0 && canEdit && (
+                <button 
+                  className="btn btn-primary btn-sm" 
+                  style={{ background: '#d97706', borderColor: '#d97706' }}
+                  onClick={() => {
+                    const selectedData = filteredMrpData.filter((_, i) => selectedMrpRows.has(i));
+                    setBulkPropuestaModal(selectedData);
+                  }}
+                >
+                  <Factory size={16} /> Proponer Seleccionadas ({selectedMrpRows.size})
+                </button>
+              )}
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                <Search size={16} style={{ position: 'absolute', left: 12, color: 'var(--text-muted)' }} />
+                <input 
+                  type="text" 
+                  className="form-input" 
+                  placeholder="Buscar en MRP..." 
+                  value={mrpSearchTerm} 
+                  onChange={e => setMrpSearchTerm(e.target.value)} 
+                  style={{ paddingLeft: 38, width: 280, border: '1px solid #e2e8f0', borderRadius: 8, fontSize: '0.88rem', height: 36, background: '#f8fafc' }} 
+                />
+              </div>
+            </div>
           </div>
           <div className="card-body" style={{ padding: 0 }}>
             <div className="data-table-wrapper">
               <table className="data-table" style={{ fontSize: '0.82rem' }}>
                 <thead>
                   <tr>
+                    {canEdit && (
+                      <th style={{ width: 40, textAlign: 'center' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={filteredMrpData.length > 0 && selectedMrpRows.size === filteredMrpData.filter(r => r.necesidadNeta > 0 && !r.propuestaPendiente).length}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              const newSet = new Set<number>();
+                              filteredMrpData.forEach((r, i) => {
+                                if (r.necesidadNeta > 0 && !r.propuestaPendiente) newSet.add(i);
+                              });
+                              setSelectedMrpRows(newSet);
+                            } else {
+                              setSelectedMrpRows(new Set());
+                            }
+                          }}
+                        />
+                      </th>
+                    )}
                     <th>Grupo</th><th>Referencia</th><th>Casa</th>
                     {DIAS.map(d => <th key={d} style={{ textAlign: 'center', width: 50, fontSize: '0.75rem' }}>{d}</th>)}
                     <th style={{ textAlign: 'right' }}>Demanda</th>
@@ -428,12 +481,28 @@ export default function VentasPage() {
                 </thead>
                 <tbody>
                   {loading ? <tr><td colSpan={16} style={{ textAlign: 'center', padding: 30 }}>Ejecutando MRP...</td></tr> :
-                  mrpData.length === 0 ? <tr><td colSpan={16} style={{ textAlign: 'center', padding: 30 }}>Sin datos de demanda.</td></tr> :
-                  mrpData.map((r, i) => {
+                  mrpData.length === 0 ? <tr><td colSpan={canEdit ? 17 : 16} style={{ textAlign: 'center', padding: 30 }}>Sin datos de demanda.</td></tr> :
+                  filteredMrpData.map((r, i) => {
                     const badgeColor = r.estado === 'ALCANZA' ? '#22c55e' : r.estado === 'SIN STOCK' ? '#ef4444' : '#f59e0b';
+                    const isSelected = selectedMrpRows.has(i);
                     return (
                       <Fragment key={i}>
-                        <tr onClick={() => setExpandedMrpRow(expandedMrpRow === i ? null : i)} style={{ cursor: 'pointer', background: r.necesidadNeta > 0 ? 'rgba(239,68,68,0.04)' : undefined, transition: 'background 0.2s' }}>
+                        <tr onClick={() => setExpandedMrpRow(expandedMrpRow === i ? null : i)} style={{ cursor: 'pointer', background: isSelected ? '#fffbeb' : r.necesidadNeta > 0 ? 'rgba(239,68,68,0.04)' : undefined, transition: 'background 0.2s' }}>
+                          {canEdit && (
+                            <td style={{ textAlign: 'center' }} onClick={e => e.stopPropagation()}>
+                              <input 
+                                type="checkbox" 
+                                disabled={!(r.necesidadNeta > 0 && !r.propuestaPendiente)}
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  const newSet = new Set(selectedMrpRows);
+                                  if (e.target.checked) newSet.add(i);
+                                  else newSet.delete(i);
+                                  setSelectedMrpRows(newSet);
+                                }}
+                              />
+                            </td>
+                          )}
                           <td style={{ fontWeight: 600, fontSize: '0.78rem' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               {expandedMrpRow === i ? <ChevronUp size={14} style={{ color: 'var(--text-muted)' }} /> : <ChevronDown size={14} style={{ color: 'var(--text-muted)' }} />}
@@ -611,8 +680,114 @@ export default function VentasPage() {
                   setPropuestaModal(null);
                   alert('Propuesta enviada a Producción.');
                   loadTabData();
-                } catch (err: any) { alert('Error: ' + err.message); }
+                } catch (err: unknown) { alert('Error: ' + (err as Error).message); }
               }}>Enviar a Producción</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ════════════════ MODAL: PROPUESTA MASIVA ════════════════ */}
+      {bulkPropuestaModal && bulkPropuestaModal.length > 0 && (
+        <div className="modal-overlay" style={{ zIndex: 9999 }}>
+          <div className="card" style={{ width: 800, padding: 24, maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+            <h3 style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}><Factory size={20} /> Proponer {bulkPropuestaModal.length} Órdenes de Producción</h3>
+            <p style={{ color: 'var(--text-muted)', marginBottom: 16, fontSize: '0.85rem' }}>
+              Revisa y ajusta los sacos por bache y la cantidad de baches a producir para cada orden antes de enviarlas al sistema.
+            </p>
+            
+            <div style={{ flex: 1, overflowY: 'auto', paddingRight: 8, marginBottom: 16 }}>
+              <table className="data-table" style={{ fontSize: '0.82rem' }}>
+                <thead>
+                  <tr>
+                    <th>Grupo / Referencia</th>
+                    <th style={{ textAlign: 'right' }}>Necesidad</th>
+                    <th style={{ width: 120 }}>Sacos x Bache</th>
+                    <th style={{ width: 120 }}>Baches</th>
+                    <th style={{ textAlign: 'right' }}>Bultos Producidos</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {bulkData.map((item, idx) => {
+                    const bultosTotales = (Number(item.sacos) || 0) * (Number(item.baches) || 0);
+                    return (
+                      <tr key={idx}>
+                        <td>
+                          <div style={{ fontWeight: 600 }}>{item.mrp.referencia}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{item.mrp.grupo}</div>
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 800, color: '#ef4444' }}>{item.mrp.necesidadNeta}</td>
+                        <td>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            style={{ height: 30, padding: '4px 8px' }}
+                            value={item.sacos}
+                            onChange={(e) => {
+                              const v = e.target.value ? Number(e.target.value) : '';
+                              const newData = [...bulkData];
+                              newData[idx].sacos = v;
+                              if (v) newData[idx].baches = Math.ceil(item.mrp.necesidadNeta / Number(v));
+                              setBulkData(newData);
+                            }}
+                          />
+                        </td>
+                        <td>
+                          <input 
+                            type="number" 
+                            className="form-input" 
+                            style={{ height: 30, padding: '4px 8px' }}
+                            value={item.baches}
+                            onChange={(e) => {
+                              const newData = [...bulkData];
+                              newData[idx].baches = Number(e.target.value);
+                              setBulkData(newData);
+                            }}
+                          />
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, color: bultosTotales >= item.mrp.necesidadNeta ? '#22c55e' : '#f59e0b' }}>
+                          {bultosTotales} bt
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 'auto', paddingTop: 16, borderTop: '1px solid #e2e8f0' }}>
+              <button className="btn btn-outline" disabled={isSubmittingBulk} onClick={() => setBulkPropuestaModal(null)}>Cancelar</button>
+              <button className="btn btn-primary" disabled={isSubmittingBulk || bulkData.some(d => !d.sacos || !d.baches)} onClick={async () => {
+                const isValid = bulkData.every(d => d.sacos && d.baches);
+                if (!isValid) {
+                  alert('Por favor, especifica tanto los sacos por bache como los baches a producir para todas las filas.');
+                  return;
+                }
+                
+                setIsSubmittingBulk(true);
+                setBulkProgress({ current: 0, total: bulkData.length });
+                
+                try {
+                  let count = 0;
+                  for (const d of bulkData) {
+                    await crearPropuestaOP(d.mrp, semana, anio, d.baches, Number(d.sacos));
+                    count++;
+                    setBulkProgress({ current: count, total: bulkData.length });
+                  }
+                  setBulkPropuestaModal(null);
+                  setSelectedMrpRows(new Set());
+                  alert(`Se han enviado ${bulkData.length} propuestas a Producción exitosamente.`);
+                  loadTabData();
+                } catch (err: unknown) { 
+                  alert('Error al enviar propuestas: ' + (err as Error).message); 
+                } finally {
+                  setIsSubmittingBulk(false);
+                  setBulkProgress(null);
+                }
+              }}>
+                {isSubmittingBulk ? <RefreshCw size={16} className="spinning" /> : <Factory size={16} />} 
+                {isSubmittingBulk ? 'Enviando...' : 'Enviar Todas a Producción'}
+              </button>
             </div>
           </div>
         </div>
@@ -655,6 +830,30 @@ export default function VentasPage() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '12px 20px', borderTop: '1px solid #e2e8f0', background: '#f8fafc' }}>
               <button className="btn btn-outline" onClick={() => setReprogramarData(null)}>Cancelar</button>
               <button className="btn btn-primary" disabled={!nuevaFecha} onClick={handleReprogramar}>Reprogramar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PROGRESO MASIVO */}
+      {bulkProgress && (
+        <div className="modal-overlay" style={{ zIndex: 10000, backdropFilter: 'blur(4px)' }}>
+          <div className="card" style={{ width: 400, padding: 30, textAlign: 'center' }}>
+            <RefreshCw size={40} className="spinning" style={{ color: '#d97706', margin: '0 auto 16px auto' }} />
+            <h3 style={{ marginBottom: 8 }}>Enviando Propuestas</h3>
+            <p style={{ color: 'var(--text-muted)', marginBottom: 20 }}>
+              Por favor espera, no cierres esta ventana. Procesando y creando las propuestas...
+            </p>
+            <div style={{ background: '#f1f5f9', borderRadius: 8, height: 16, overflow: 'hidden', marginBottom: 10 }}>
+              <div style={{ 
+                background: '#d97706', 
+                height: '100%', 
+                width: `${(bulkProgress.current / bulkProgress.total) * 100}%`,
+                transition: 'width 0.3s ease-out'
+              }} />
+            </div>
+            <div style={{ fontWeight: 700, fontSize: '1.1rem', color: '#d97706' }}>
+              {bulkProgress.current} de {bulkProgress.total} enviadas
             </div>
           </div>
         </div>

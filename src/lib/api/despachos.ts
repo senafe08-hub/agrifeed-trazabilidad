@@ -6,6 +6,7 @@
 
 import supabase from '../supabase';
 import { registrarAuditoria } from '../supabase';
+import type { DespachoEncabezado, DespachoHeaderFormData, DetalleFormRow } from '../types';
 
 // ---------- Fetch accumulated dispatched quantities per lote ----------
 export async function fetchDespachosAcumulados(): Promise<Record<number, number>> {
@@ -24,6 +25,8 @@ export async function fetchDespachosAcumulados(): Promise<Record<number, number>
   }
   return acumulados;
 }
+
+
 
 /** Fetch all despachos and group them by remision to simulate encadezados */
 export async function fetchDespachos() {
@@ -47,7 +50,7 @@ export async function fetchDespachos() {
     }
   }
   
-  const map = new Map<string | number, any>();
+  const map = new Map<string | number, DespachoEncabezado>();
   for (const row of (data || [])) {
     const key = row.num_remision || `draft_${row.fecha}_${row.cliente_id}_${row.vehiculo_id}`;
     if (!map.has(key)) {
@@ -70,7 +73,7 @@ export async function fetchDespachos() {
         detalle: []
       });
     }
-    map.get(key).detalle.push({
+    map.get(key)!.detalle.push({
       id: row.id,
       op: row.lote,
       lote: row.lote,
@@ -79,7 +82,7 @@ export async function fetchDespachos() {
       bultos_devueltos: row.bultos_danados
     });
   }
-  return Array.from(map.values()).sort((a: any, b: any) => (b.remision || 0) - (a.remision || 0));
+  return Array.from(map.values()).sort((a, b) => (b.remision || 0) - (a.remision || 0));
 }
 
 /** Get the next consecutive remision number */
@@ -99,7 +102,7 @@ export async function fetchNextRemision(): Promise<number> {
 }
 
 /** Create a new despacho by inserting multiple flat rows */
-export async function createDespacho(encabezado: any, detalles: any[]) {
+export async function createDespacho(encabezado: DespachoHeaderFormData, detalles: DetalleFormRow[], skipAudit = false) {
   let remisionNum = encabezado.remision ? parseInt(encabezado.remision) : null;
   if (!remisionNum) {
     remisionNum = await fetchNextRemision();
@@ -109,12 +112,12 @@ export async function createDespacho(encabezado: any, detalles: any[]) {
     fecha: encabezado.fecha,
     hora: encabezado.hora || null,
     num_remision: remisionNum,
-    lote: (d.op || d.lote) ? parseInt(d.op || d.lote) : null,
-    granja_id: encabezado.granja_id ? parseInt(encabezado.granja_id) : null,
-    bultos_despachados: d.cantidad_a_despachar ? parseInt(d.cantidad_a_despachar) : 0,
-    bultos_danados: d.bultos_danados ? parseInt(d.bultos_danados) : 0,
-    vehiculo_id: encabezado.vehiculo_id ? parseInt(encabezado.vehiculo_id) : null,
-    cliente_id: encabezado.cliente_id ? parseInt(encabezado.cliente_id) : null,
+    lote: (d.op || d.lote) ? parseInt(String(d.op || d.lote)) : null,
+    granja_id: encabezado.granja_id ? parseInt(String(encabezado.granja_id)) : null,
+    bultos_despachados: d.cantidad_a_despachar ? parseInt(String(d.cantidad_a_despachar)) : 0,
+    bultos_danados: d.bultos_danados ? parseInt(String(d.bultos_danados)) : 0,
+    vehiculo_id: encabezado.vehiculo_id ? parseInt(String(encabezado.vehiculo_id)) : null,
+    cliente_id: encabezado.cliente_id ? parseInt(String(encabezado.cliente_id)) : null,
     entregado_por: encabezado.entregado_por || null,
     observaciones: encabezado.observaciones || null,
     estado: encabezado.estado || 'borrador'
@@ -122,14 +125,16 @@ export async function createDespacho(encabezado: any, detalles: any[]) {
   const { error: insertError } = await supabase.from('despachos').insert(rows);
   if (insertError) throw insertError;
   
-  await registrarAuditoria('CREATE', 'Despachos', `Se registró el despacho con remisión ${remisionNum}`);
+  if (!skipAudit) {
+    await registrarAuditoria('CREATE', 'Despachos', `Se registró el despacho con remisión ${remisionNum}`);
+  }
   return { encabezadoId: remisionNum };
 }
 
 async function deleteDespachoByUIKey(id: string | number) {
   let query = supabase.from('despachos').delete();
   if (String(id).startsWith('draft_')) {
-    const [_, fecha, cliente_id, vehiculo_id] = String(id).split('_');
+    const [, fecha, cliente_id, vehiculo_id] = String(id).split('_');
     query = query.is('num_remision', null).eq('fecha', fecha).eq('cliente_id', cliente_id);
     if (vehiculo_id && vehiculo_id !== 'null') query = query.eq('vehiculo_id', vehiculo_id);
     else query = query.is('vehiculo_id', null);
@@ -141,9 +146,9 @@ async function deleteDespachoByUIKey(id: string | number) {
 }
 
 /** Update an existing despacho */
-export async function updateDespacho(id: number | string, encabezadoUpdates: any, detalleUpdates: any[]) {
+export async function updateDespacho(id: number | string, encabezadoUpdates: DespachoHeaderFormData, detalleUpdates: DetalleFormRow[]) {
   await deleteDespachoByUIKey(id);
-  const result = await createDespacho(encabezadoUpdates, detalleUpdates);
+  const result = await createDespacho(encabezadoUpdates, detalleUpdates, true);
   await registrarAuditoria('UPDATE', 'Despachos', `Se actualizó el despacho con ID/Remisión ${id}`);
   return result;
 }

@@ -176,7 +176,7 @@ export default function Sidebar({ userEmail, userRole, onLogout }: SidebarProps)
 
           const filteredItems = section.items.filter(item => {
             const moduleName = item.path === '/' ? 'dashboard' : item.path.substring(1);
-            return isRoleAdmin || roleData.canView.includes(moduleName as any);
+            return isRoleAdmin || roleData.canView.includes(moduleName as never);
           });
 
           if (filteredItems.length === 0) return null;

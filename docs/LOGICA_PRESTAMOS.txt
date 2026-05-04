@@ -1,0 +1,59 @@
+======================================================================
+MANUAL DE LÓGICA DE PRÉSTAMOS Y COMPENSACIONES - AGRIFEED TRAZABILIDAD
+======================================================================
+Última actualización: 26 de Abril de 2026
+
+1. PRINCIPIO BÁSICO (SEPARACIÓN POR GRUPOS)
+--------------------------------------------------
+El inventario de Producto Terminado (PT) está estrictamente dividido por Grupos Corporativos (ej: CERDOS VARIOS, OG AGRICOLA, CERDOS VARIOS PREMEX, etc.). 
+Toda Orden de Producción (OP) le pertenece EXCLUSIVAMENTE al grupo para el cual fue programada inicialmente.
+El sistema prohíbe despachar bultos de una OP a un cliente que pertenezca a un grupo diferente, A MENOS que exista un "Préstamo" o una "Compensación".
+
+2. EL FLUJO DE LOS PRÉSTAMOS (OTORGADOS)
+--------------------------------------------------
+Cuando el Grupo A necesita despachar producto pero no tiene saldo propio, puede "tomar prestado" de una OP que pertenezca al Grupo B.
+- Esto crea un registro en la tabla `prestamos_inventario`.
+- `grupo_origen`: El dueño original de la OP (Grupo B).
+- `grupo_destino`: El grupo que está pidiendo prestado (Grupo A).
+- `cantidad`: Bultos prestados.
+- `estado`: 'PENDIENTE' (o 'PARCIAL' si se repone de a poco).
+- `motivo`: Se marca con la etiqueta "Préstamo tomado de OP X" (donde X es la OP del Grupo B que prestó el material).
+
+*Impacto en Inventario*: Para la OP X, los bultos prestados se RESTAN de su máximo disponible (fisicoMax). El Grupo B ya no puede despachar esos bultos, aunque la OP haya producido más, porque ya se los llevó el Grupo A.
+
+3. EL FLUJO DE LAS COMPENSACIONES (PAGOS AUTOMÁTICOS)
+--------------------------------------------------
+Cuando el Grupo A (el deudor) finalmente produce el mismo alimento en una nueva OP (ej: OP Y):
+- El sistema detecta automáticamente que el Grupo A le debe bultos al Grupo B.
+- Descuenta bultos de la nueva OP Y y se los "entrega" al Grupo B como pago.
+- El préstamo cambia su `cantidad_compensada`. Si se paga todo, pasa a estado 'COMPENSADO'.
+- Se le agrega al `motivo` la etiqueta: "| Repuesto con OP Y".
+
+*Impacto en Inventario*: 
+Para la OP Y (la nueva), esos bultos usados para pagar SE RESTAN de su máximo disponible. El Grupo A (quien la produjo) NO puede despacharlos. Esos bultos ahora le "pertenecen" al Grupo B.
+
+4. LÓGICA DE DESPACHOS CRUZADOS (CÓMO EL SISTEMA PERMITE LA SALIDA)
+--------------------------------------------------
+Cuando intentas despachar una OP que pertenece al Grupo B hacia un cliente del Grupo A, el sistema hace esta cuenta para saber cuántos bultos te deja sacar:
+
+A) PRÉSTAMOS ACTIVOS: Busca si el Grupo B le prestó al Grupo A y el estado sigue PENDIENTE.
+B) COMPENSACIONES: Busca si el Grupo A le pagó una deuda al Grupo B usando ESTA OP EXACTA (Repuesto con OP Y). Si es así, significa que el Grupo B es el nuevo dueño de esos bultos y tiene todo el derecho de despacharlos a sus clientes.
+
+Límite Permitido = (Préstamos Pendientes) + (Compensaciones pagadas con esta OP).
+
+5. LA REGLA DE ORO DE "CERDOS VARIOS" (ELASTICIDAD DE GRUPOS)
+--------------------------------------------------
+Existen clientes específicos como "CERDOS VARIOS PREMEX", "CERDOS VARIOS SOLLA", y el grupo padre "CERDOS VARIOS".
+Para evitar que el sistema bloquee despachos entre la misma familia, el validador usa una búsqueda flexible (operador LIKE %):
+Si el grupo es "CERDOS VARIOS PREMEX", el sistema lo trata internamente como si fuera de la gran sombrilla "CERDOS VARIOS%". 
+De esta forma, una compensación hecha por "CERDOS VARIOS PREMEX" puede ser despachada sin error a un cliente estándar de "CERDOS VARIOS" (ej: MACPORK).
+
+======================================================================
+REGISTRO DE CAMBIOS (CHANGELOG)
+======================================================================
+- 26/04/2026: Se creó el documento inicial.
+- 26/04/2026: Se agregó la regla de elasticidad para la familia "CERDOS VARIOS" en useDespachos.ts y DetalleOPList.tsx.
+- 26/04/2026: Se corrigió el cálculo de fisicoMax para que reste correctamente los bultos perdidos por préstamos otorgados y por compensaciones pagadas usando `fetchPrestamosAcumuladosPorOP()`.
+
+NOTA PARA EL ASISTENTE IA:
+Nunca elimines este archivo. Si el usuario pide un cambio en la lógica de despachos o préstamos, abre y revisa este archivo primero. Si el cambio se aprueba, añade el cambio en el Changelog y reescribe la sección correspondiente. SIEMPRE PIDE PERMISO AL USUARIO antes de modificar este archivo.

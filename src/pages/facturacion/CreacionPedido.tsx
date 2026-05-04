@@ -8,10 +8,10 @@ import {
   fetchPedidosPorEstado,
   fetchPedidosPorRemision,
   fetchProgramacionParaAnticipado,
-  fetchMaestros,
   eliminarPedido,
 } from '../../lib/supabase';
 import { toast } from '../../components/Toast';
+import { useMaestrosStore } from '../../store/maestrosStore';
 
 const ESTADOS = [
   'PENDIENTE LIBERACIÓN',
@@ -20,6 +20,38 @@ const ESTADOS = [
   'LIBERADO',
   'VERIFICAR PEDIDO',
 ];
+
+interface ExtendedRemision {
+  num_remision: number;
+  cliente_nombre: string;
+  cliente_codigo?: number;
+  fecha_despacho: string;
+  ops: { op: number; saldo_pendiente: number; codigo_alimento?: number; referencia?: string; bultos_despachados?: number; bultos_ya_pedidos?: number }[];
+}
+
+interface ExtendedPedido {
+  id: number;
+  num_pedido: string | null;
+  num_remision: number | null;
+  codigo_cliente?: number;
+  nombre_cliente?: string;
+  estado: string;
+  es_anticipado: boolean;
+  pedido_relacionado_id: number | null;
+  created_at: string;
+  pedido_detalle: { op: number; codigo_alimento?: number; referencia?: string; bultos_pedido: number; kg_pedido?: number }[];
+}
+
+interface ExtendedCliente {
+  codigo_sap: number | string;
+  nombre: string;
+}
+
+interface ExtendedProgramacion {
+  op: number;
+  codigo_alimento: number;
+  referencia: string;
+}
 
 interface OPRow {
   selected: boolean;
@@ -35,9 +67,9 @@ interface OPRow {
 
 export default function CreacionPedido({ onRefreshKpis, isAdmin, canEdit = true }: { onRefreshKpis?: () => void; isAdmin?: boolean; canEdit?: boolean }) {
   // Remisiones
-  const [remisiones, setRemisiones] = useState<any[]>([]);
+  const [remisiones, setRemisiones] = useState<ExtendedRemision[]>([]);
   const [remisionSearch, setRemisionSearch] = useState('');
-  const [selectedRemision, setSelectedRemision] = useState<any>(null);
+  const [selectedRemision, setSelectedRemision] = useState<ExtendedRemision | null>(null);
   const [, setLoadingRemisiones] = useState(false);
 
   // Date range filter for remisiones
@@ -50,8 +82,8 @@ export default function CreacionPedido({ onRefreshKpis, isAdmin, canEdit = true 
 
   // Anticipado mode
   const [esAnticipado, setEsAnticipado] = useState(false);
-  const [programacion, setProgramacion] = useState<any[]>([]);
-  const [clientes, setClientes] = useState<any[]>([]);
+  const [programacion, setProgramacion] = useState<ExtendedProgramacion[]>([]);
+  const [clientes, setClientes] = useState<ExtendedCliente[]>([]);
   const [clienteAnticipado, setClienteAnticipado] = useState('');
   const [clienteNombreAnticipado, setClienteNombreAnticipado] = useState('');
 
@@ -63,14 +95,14 @@ export default function CreacionPedido({ onRefreshKpis, isAdmin, canEdit = true 
   const [estado, setEstado] = useState('PENDIENTE LIBERACIÓN');
   const [esCompartido, setEsCompartido] = useState(false);
   const [pedidoRelacionado, setPedidoRelacionado] = useState<number | null>(null);
-  const [pedidosDeRemision, setPedidosDeRemision] = useState<any[]>([]);
+  const [pedidosDeRemision, setPedidosDeRemision] = useState<ExtendedPedido[]>([]);
 
   // Edit state
-  const [editingPedido, setEditingPedido] = useState<any>(null);
+  const [editingPedido, setEditingPedido] = useState<ExtendedPedido | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Existing pedidos list
-  const [pedidosExistentes, setPedidosExistentes] = useState<any[]>([]);
+  const [pedidosExistentes, setPedidosExistentes] = useState<ExtendedPedido[]>([]);
   const [showPedidosList, setShowPedidosList] = useState(false);
   const [pedidosListFilter, setPedidosListFilter] = useState('');
 
@@ -84,9 +116,9 @@ export default function CreacionPedido({ onRefreshKpis, isAdmin, canEdit = true 
     setLoadingRemisiones(true);
     try {
       const data = await fetchRemisionesPendientes();
-      setRemisiones(data);
-    } catch (e: any) {
-      toast.error('Error cargando remisiones: ' + e.message);
+      setRemisiones(data as unknown as ExtendedRemision[]);
+    } catch (e: unknown) {
+      toast.error('Error cargando remisiones: ' + (e as Error).message);
     }
     setLoadingRemisiones(false);
   };
@@ -96,22 +128,20 @@ export default function CreacionPedido({ onRefreshKpis, isAdmin, canEdit = true 
       const data = await fetchPedidosPorEstado([
         'PENDIENTE LIBERACIÓN', 'PENDIENTE PAGO', 'PENDIENTE PV', 'LIBERADO', 'VERIFICAR PEDIDO'
       ]);
-      setPedidosExistentes(data);
-    } catch (e: any) {
+      setPedidosExistentes(data as unknown as ExtendedPedido[]);
+    } catch (e: unknown) {
       console.error(e);
     }
   };
 
   const loadAnticipado = async () => {
     try {
-      const [prog, maestros] = await Promise.all([
-        fetchProgramacionParaAnticipado(),
-        fetchMaestros(),
-      ]);
-      setProgramacion(prog);
-      setClientes(maestros.clientes || []);
-    } catch (e: any) {
-      toast.error('Error cargando datos: ' + e.message);
+      const prog = await fetchProgramacionParaAnticipado();
+      await useMaestrosStore.getState().fetchData();
+      setProgramacion(prog as unknown as ExtendedProgramacion[]);
+      setClientes((useMaestrosStore.getState().clientes as unknown as ExtendedCliente[]) || []);
+    } catch (e: unknown) {
+      toast.error('Error cargando pedidos: ' + (e as Error).message);
     }
   };
 
@@ -139,24 +169,25 @@ export default function CreacionPedido({ onRefreshKpis, isAdmin, canEdit = true 
         toast.error('Remisión no encontrada o completamente facturada.');
         return;
       }
-      setSelectedRemision(detalle);
-      setOpRows(detalle.ops.map((op: any) => ({
-        selected: op.saldo_pendiente > 0,
+      const typedDetalle = detalle as unknown as ExtendedRemision;
+      setSelectedRemision(typedDetalle);
+      setOpRows(typedDetalle.ops.map((op) => ({
+        selected: (op.saldo_pendiente as number) > 0,
         op: op.op,
-        codigo_alimento: op.codigo_alimento,
-        referencia: op.referencia,
-        bultos_despachados: op.bultos_despachados,
-        bultos_ya_pedidos: op.bultos_ya_pedidos,
-        saldo_pendiente: op.saldo_pendiente,
+        codigo_alimento: op.codigo_alimento || 0,
+        referencia: op.referencia || '',
+        bultos_despachados: op.bultos_despachados || 0,
+        bultos_ya_pedidos: op.bultos_ya_pedidos || 0,
+        saldo_pendiente: op.saldo_pendiente || 0,
         bultos_pedido: op.saldo_pendiente > 0 ? op.saldo_pendiente : 0,
         kg: (op.saldo_pendiente > 0 ? op.saldo_pendiente : 0) * 40,
       })));
 
       // Load related pedidos for compartido
       const pedRem = await fetchPedidosPorRemision(numRemision);
-      setPedidosDeRemision(pedRem);
-    } catch (e: any) {
-      toast.error('Error al cargar remisión: ' + e.message);
+      setPedidosDeRemision(pedRem as unknown as ExtendedPedido[]);
+    } catch (e: unknown) {
+      toast.error('Error seleccionando remisión: ' + (e as Error).message);
     }
   };
 
@@ -335,8 +366,8 @@ export default function CreacionPedido({ onRefreshKpis, isAdmin, canEdit = true 
       loadRemisiones();
       loadPedidosExistentes();
       if (onRefreshKpis) onRefreshKpis();
-    } catch (e: any) {
-      toast.error('Error al guardar: ' + e.message);
+    } catch (e: unknown) {
+      toast.error('Error al guardar: ' + (e as Error).message);
     }
     setSaving(false);
   };
@@ -354,7 +385,8 @@ export default function CreacionPedido({ onRefreshKpis, isAdmin, canEdit = true 
   };
 
   // Edit existing pedido
-  const handleEditPedido = async (pedido: any) => {
+  const handleEditPedido = async (pedidoParams: unknown) => {
+    const pedido = pedidoParams as ExtendedPedido;
     setEditingPedido(pedido);
     setNumPedido(pedido.num_pedido || '');
     setEstado(pedido.estado);
@@ -366,10 +398,10 @@ export default function CreacionPedido({ onRefreshKpis, isAdmin, canEdit = true 
     if (pedido.es_anticipado) {
       loadAnticipado();
       setClienteAnticipado(String(pedido.codigo_cliente));
-      setClienteNombreAnticipado(pedido.nombre_cliente);
+      setClienteNombreAnticipado(pedido.nombre_cliente || '');
 
       if (pedido.pedido_detalle) {
-        setOpRows(pedido.pedido_detalle.map((d: any) => ({
+        setOpRows(pedido.pedido_detalle.map((d) => ({
           selected: true,
           op: d.op,
           codigo_alimento: d.codigo_alimento || 0,
@@ -389,38 +421,40 @@ export default function CreacionPedido({ onRefreshKpis, isAdmin, canEdit = true 
           toast.error('No se pudo cargar la remisión para editar.');
           return;
         }
-        setSelectedRemision(detalle);
+        const typedDetalle = detalle as unknown as ExtendedRemision;
+        setSelectedRemision(typedDetalle);
 
         const pedidoDetalleMap = new Map();
         for (const d of (pedido.pedido_detalle || [])) {
           pedidoDetalleMap.set(d.op, d);
         }
 
-        setOpRows(detalle.ops.map((op: any) => {
+        setOpRows(typedDetalle.ops.map((op) => {
           const det = pedidoDetalleMap.get(op.op);
           const selected = !!det;
           const bultos_pedido = selected ? det.bultos_pedido : 0;
           return {
             selected,
             op: op.op,
-            codigo_alimento: op.codigo_alimento,
-            referencia: op.referencia,
-            bultos_despachados: op.bultos_despachados,
-            bultos_ya_pedidos: op.bultos_ya_pedidos,
-            saldo_pendiente: op.saldo_pendiente,
+            codigo_alimento: op.codigo_alimento || 0,
+            referencia: op.referencia || '',
+            bultos_despachados: op.bultos_despachados || 0,
+            bultos_ya_pedidos: op.bultos_ya_pedidos || 0,
+            saldo_pendiente: op.saldo_pendiente || 0,
             bultos_pedido,
             kg: bultos_pedido * 40,
           };
         }));
 
         const pedRem = await fetchPedidosPorRemision(pedido.num_remision);
-        setPedidosDeRemision(pedRem);
-      } catch (e: any) {
-        toast.error('Error al cargar remisión para edición: ' + e.message);
+        setPedidosDeRemision(pedRem as unknown as ExtendedPedido[]);
+      } catch (e: unknown) {
+        toast.error('Error al cargar remisión para edición: ' + (e as Error).message);
       }
     }
   };
-  const handleDeletePedido = async (pedido: any) => {
+  const handleDeletePedido = async (pedidoParams: unknown) => {
+    const pedido = pedidoParams as ExtendedPedido;
     if (!window.confirm(`¿Estás seguro de eliminar el pedido ${pedido.num_pedido || pedido.id}?`)) return;
     try {
       await eliminarPedido(pedido.id);
@@ -428,8 +462,8 @@ export default function CreacionPedido({ onRefreshKpis, isAdmin, canEdit = true 
       loadPedidosExistentes();
       loadRemisiones();
       if (onRefreshKpis) onRefreshKpis();
-    } catch (e: any) {
-      toast.error('Error al eliminar: ' + e.message);
+    } catch (e: unknown) {
+      toast.error('Error al eliminar: ' + (e as Error).message);
     }
   };
 
@@ -510,8 +544,8 @@ export default function CreacionPedido({ onRefreshKpis, isAdmin, canEdit = true 
                   }}>
                     <option value="">Seleccionar remisión pendiente...</option>
                     {filteredRemisiones.map(r => (
-                      <option key={r.num_remision} value={r.num_remision}>
-                        {r.num_remision} — {r.cliente_nombre} — {r.fecha_despacho} ({r.ops.filter((o: any) => o.saldo_pendiente > 0).length} OPs)
+                      <option key={String(r.num_remision)} value={String(r.num_remision)}>
+                        {r.num_remision} — {r.cliente_nombre} — {r.fecha_despacho} ({r.ops.filter(o => o.saldo_pendiente && o.saldo_pendiente > 0).length} OPs)
                       </option>
                     ))}
                   </select>
@@ -527,11 +561,11 @@ export default function CreacionPedido({ onRefreshKpis, isAdmin, canEdit = true 
                 <label className="form-label">Cliente *</label>
                 <select className="form-select" value={clienteAnticipado} onChange={e => {
                   setClienteAnticipado(e.target.value);
-                  const cl = clientes.find((c: any) => String(c.codigo_sap) === e.target.value);
+                  const cl = clientes.find(c => String(c.codigo_sap) === e.target.value);
                   setClienteNombreAnticipado(cl?.nombre || '');
                 }}>
                   <option value="">Seleccionar cliente...</option>
-                  {clientes.map((c: any) => (
+                  {clientes.map(c => (
                     <option key={c.codigo_sap} value={c.codigo_sap}>{c.nombre}</option>
                   ))}
                 </select>
@@ -781,8 +815,8 @@ export default function CreacionPedido({ onRefreshKpis, isAdmin, canEdit = true 
                     .filter(p => {
                       if (!pedidosListFilter) return true;
                       const term = pedidosListFilter.toLowerCase();
-                      return (p.num_pedido || '').toLowerCase().includes(term) ||
-                        (p.nombre_cliente || '').toLowerCase().includes(term) ||
+                      return String(p.num_pedido || '').toLowerCase().includes(term) ||
+                        String(p.nombre_cliente || '').toLowerCase().includes(term) ||
                         String(p.num_remision || '').includes(term);
                     })
                     .slice(0, 100)
@@ -792,16 +826,16 @@ export default function CreacionPedido({ onRefreshKpis, isAdmin, canEdit = true 
                         <td>{p.num_remision || (p.es_anticipado ? <span className="estado-tag anticipado">Anticipado</span> : '—')}</td>
                         <td>{p.nombre_cliente || '—'}</td>
                         <td>{renderEstado(p.estado)}</td>
-                        <td style={{ fontSize: '0.8rem' }}>{new Date(p.created_at).toLocaleDateString('es-CO')}</td>
+                        <td style={{ fontSize: '0.8rem' }}>{new Date(p.created_at || new Date()).toLocaleDateString('es-CO')}</td>
                         <td>
                           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                            {(p.pedido_detalle || []).map((d: any, i: number) => (
+                            {(p.pedido_detalle || []).map((d, i) => (
                               <span key={i} style={{
                                 background: 'var(--green-50)',
                                 border: '1px solid var(--green-200)',
                                 borderRadius: 4, padding: '1px 6px',
                                 fontSize: '0.72rem', fontWeight: 600,
-                              }}>{d.op}</span>
+                              }}>{String(d.op)}</span>
                             ))}
                           </div>
                         </td>

@@ -26,7 +26,7 @@ export default function UpdateChecker() {
         // Auto-hide after 3 seconds
         setTimeout(() => setDismissed(true), 3000);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.warn('Update check failed:', err);
       // Silently fail – don't bother the user if they're offline
       setStatus('idle');
@@ -67,8 +67,8 @@ export default function UpdateChecker() {
 
       // Relaunch after install
       await relaunch();
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Error al descargar la actualización');
+    } catch (err: unknown) {
+      setErrorMsg((err as Error)?.message || 'Error al descargar la actualización');
       setStatus('error');
     }
   };

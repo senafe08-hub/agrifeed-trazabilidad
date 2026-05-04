@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Search, Download, Upload, XCircle, ChevronLeft, ChevronRight, History, Trash2, Calendar } from 'lucide-react';
-import { fetchHistoricoFacturacion, anularFactura, eliminarFactura, importarHistoricoFacturasExcel, toggleMatrizadaFactura, fetchOPsConFormula, fetchFormulaConDetalle } from '../../lib/supabase';
+import { fetchHistoricoFacturacion, anularFactura, eliminarFactura, importarHistoricoFacturasExcel, toggleMatrizadaFactura, fetchOPsPorLotes, fetchFormulasDetalleBatch } from '../../lib/supabase';
+import { HistoricoFacturacionRow } from '../../lib/types';
 import { toast } from '../../components/Toast';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import * as XLSX from 'xlsx';
@@ -8,7 +9,7 @@ import * as XLSX from 'xlsx';
 const PAGE_SIZE = 200; // Increased from 100 — virtualizer handles the DOM load
 
 export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit = true, userRole }: { onRefreshKpis?: () => void; isAdmin?: boolean; canEdit?: boolean; userRole?: string }) {
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<HistoricoFacturacionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
@@ -37,8 +38,8 @@ export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit =
     try {
       const rows = await fetchHistoricoFacturacion();
       setData(rows);
-    } catch (e: any) {
-      toast.error('Error cargando histórico: ' + e.message);
+    } catch (e: unknown) {
+      toast.error('Error cargando histórico: ' + (e as Error).message);
     }
     setLoading(false);
   };
@@ -64,7 +65,7 @@ export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit =
       for (const key of Object.keys(columnFilters)) {
         const fv = columnFilters[key];
         if (!fv) continue;
-        const val = String((item as any)[key] ?? '').toLowerCase();
+        const val = String((item as unknown as Record<string, unknown>)[key] ?? '').toLowerCase();
         if (!val.includes(fv.toLowerCase())) return false;
       }
       return true;
@@ -105,8 +106,8 @@ export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit =
       toast.success(`Factura ${confirmAnular.numFactura} anulada. Los pedidos vuelven a estado LIBERADO.`);
       loadData();
       if (onRefreshKpis) onRefreshKpis();
-    } catch (e: any) {
-      toast.error('Error al anular: ' + e.message);
+    } catch (e: unknown) {
+      toast.error('Error al anular: ' + (e as Error).message);
     }
     setAnulando(null);
     setConfirmAnular(null);
@@ -121,15 +122,15 @@ export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit =
       toast.success(`Factura ${numFactura} eliminada.`);
       loadData();
       if (onRefreshKpis) onRefreshKpis();
-    } catch (e: any) {
-      toast.error('Error al eliminar: ' + e.message);
+    } catch (e: unknown) {
+      toast.error('Error al eliminar: ' + (e as Error).message);
     }
     setEliminando(null);
   };
 
-  const handleImportExcel = (e: any) => {
+  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!canEdit) return;
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
     if (!window.confirm('¿Estás seguro de importar esta data? Se creará historial nuevo basado en las facturas.')) {
       e.target.value = '';
@@ -151,12 +152,12 @@ export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit =
           return;
         }
         
-        const res = await importarHistoricoFacturasExcel(parsedData as any[]);
+        const res = await importarHistoricoFacturasExcel(parsedData as Record<string, unknown>[]);
         toast.success(`Importación finalizada. ${res.success} facturas creadas. Errores: ${res.errors}`);
         loadData();
         if (onRefreshKpis) onRefreshKpis();
-      } catch (err: any) {
-        toast.error("Error al importar: " + err.message);
+      } catch (err: unknown) {
+        toast.error("Error al importar: " + (err as Error).message);
       }
       setImporting(false);
       e.target.value = ''; // Reset
@@ -193,30 +194,52 @@ export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit =
        toast.error("No hay facturas filtradas en pantalla que estén vigentes y Pendientes por Matrizar.");
        return;
     }
+    
+    // Obtener el file handle INMEDIATAMENTE para evitar perder el "user gesture" del navegador
+    let fileHandle: any = null;
+    if ('showSaveFilePicker' in window) {
+      try {
+        const win = window as unknown as { showSaveFilePicker: (options: unknown) => Promise<any> };
+        fileHandle = await win.showSaveFilePicker({ 
+           suggestedName: `Matrizado_Requerido_${new Date().toISOString().split('T')[0]}.xlsx`, 
+           types: [{ description: 'Excel', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }] 
+        });
+      } catch (err: unknown) {
+        if ((err as Error).name !== 'AbortError') toast.error("Error al obtener acceso al archivo: " + (err as Error).message);
+        return; // El usuario canceló el diálogo o no hay soporte
+      }
+    }
+
     setLoading(true);
     try {
-        const opsProg = await fetchOPsConFormula();
-        const formulaIds = Array.from(new Set(opsProg.map(o => o.formula_id).filter(Boolean)));
+        // Optimización: Solo consultar las OPs que están en las facturas pendientes
+        const pendingLotes = Array.from(new Set(pendientes.map(p => p.op).filter(Boolean)));
+        const opsProg = await fetchOPsPorLotes(pendingLotes);
+        
+        // Extraer los IDs de las fórmulas usadas por estas OPs
+        const formulaIds = Array.from(new Set(opsProg.map(o => o.formula_id).filter(Boolean))) as number[];
+        
+        // Consultar los detalles de TODAS las fórmulas de una sola vez
+        const formulasBatch = await fetchFormulasDetalleBatch(formulaIds);
         const formulasMap = new Map();
         for (const id of formulaIds) {
-           const { detalle } = await fetchFormulaConDetalle(id!);
-           formulasMap.set(id, detalle);
+           formulasMap.set(id, formulasBatch[id] || []);
         }
 
-        const reportData: any[] = [];
+        const reportData: Record<string, unknown>[] = [];
         for (const p of pendientes) {
-           const opData = opsProg.find((o: any) => o.lote === p.op);
+           const opData = opsProg.find((o: Record<string, unknown>) => o.lote === p.op);
            if (!opData || !opData.formula_id) continue;
            const formulaDet = formulasMap.get(opData.formula_id) || [];
            
-           let sacosPorBache = (opData as any).formulas?.sacos_por_bache;
+           let sacosPorBache = (opData as { formulas?: { sacos_por_bache?: number } }).formulas?.sacos_por_bache || 0;
            if (!sacosPorBache || sacosPorBache === 0) {
-              const sacoMat = formulaDet.find((m: any) => m.inventario_materiales?.nombre?.toUpperCase().includes('SACO'));
+              const sacoMat = formulaDet.find((m: Record<string, unknown>) => (m.inventario_materiales as { nombre?: string })?.nombre?.toUpperCase().includes('SACO'));
               if (sacoMat && sacoMat.cantidad_base > 0) {
                  sacosPorBache = sacoMat.cantidad_base;
               } else {
-                 const totalKgFormula = formulaDet.reduce((s: number, m: any) => {
-                    const nom = m.inventario_materiales?.nombre?.toUpperCase() || '';
+                 const totalKgFormula = formulaDet.reduce((s: number, m: Record<string, unknown>) => {
+                    const nom = (m.inventario_materiales as { nombre?: string })?.nombre?.toUpperCase() || '';
                     if (nom.includes('SACO') || nom.includes('ETIQUETA') || nom.includes('HILO')) return s;
                     return s + (Number(m.cantidad_base) || 0);
                  }, 0);
@@ -253,17 +276,17 @@ export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit =
         const ws = XLSX.utils.json_to_sheet(reportData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Pendientes_Piciz');
-        if ('showSaveFilePicker' in window) {
-          const handle = await (window as any).showSaveFilePicker({ suggestedName: `Matrizado_Requerido_${new Date().toISOString().split('T')[0]}.xlsx`, types: [{ description: 'Excel', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }] });
-          const writable = await handle.createWritable();
+        
+        if (fileHandle) {
+          const writable = await fileHandle.createWritable();
           await writable.write(XLSX.write(wb, { bookType: 'xlsx', type: 'array' }));
           await writable.close();
         } else {
-          XLSX.writeFile(wb, `Matrizado_Requerido.xlsx`);
+          XLSX.writeFile(wb, `Matrizado_Requerido_${new Date().toISOString().split('T')[0]}.xlsx`);
         }
         toast.success("Reporte generado con éxito.");
-    } catch(e: any) {
-        toast.error("Error al generar: " + e.message);
+    } catch(e: unknown) {
+        toast.error("Error al generar: " + (e as Error).message);
     }
     setLoading(false);
   };
@@ -294,7 +317,8 @@ export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit =
     XLSX.utils.book_append_sheet(wb, ws, 'HISTORICO_FACTURACION');
     try {
       if ('showSaveFilePicker' in window) {
-        const handle = await (window as any).showSaveFilePicker({
+        const win = window as unknown as { showSaveFilePicker: (options: unknown) => Promise<{ createWritable: () => Promise<{ write: (data: unknown) => Promise<void>; close: () => Promise<void> }> }> };
+        const handle = await win.showSaveFilePicker({
           suggestedName: 'Historico_Facturacion.xlsx',
           types: [{ description: 'Excel', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }],
         });
@@ -305,8 +329,8 @@ export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit =
         XLSX.writeFile(wb, 'Historico_Facturacion.xlsx');
       }
       toast.success('Exportación completada.');
-    } catch (e: any) {
-      if (e.name !== 'AbortError') toast.error('Error al exportar: ' + e.message);
+    } catch (e: unknown) {
+      if ((e as Error).name !== 'AbortError') toast.error('Error al exportar: ' + (e as Error).message);
     }
   };
 
@@ -324,7 +348,7 @@ export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit =
     const delSeen = new Set<number>();
     for (let i = 0; i < paginatedData.length; i++) {
       const row = paginatedData[i];
-      const fId = row.factura_id;
+      const fId = row.factura_id || 0;
       flags[i] = {
         showAnular: row.estado_factura !== 'ANULADA' && !seen.has(fId),
         showMatrizada: !matSeen.has(fId),
@@ -474,7 +498,7 @@ export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit =
                         <td style={{ textAlign: 'center' }}>
                           {flags.showMatrizada && row.estado_factura !== 'ANULADA' && canToggleMatrizado ? (
                              <label className="switch-sm" title={disableToggle ? "Solo el Administrador puede desmarcar" : "Marcar como procesado por PICIZ"} style={{ opacity: disableToggle ? 0.6 : 1 }}>
-                               <input type="checkbox" checked={!!row.matrizada} disabled={disableToggle} onChange={() => handleToggleMatrizada(row.factura_id, !!row.matrizada)} />
+                               <input type="checkbox" checked={!!row.matrizada} disabled={disableToggle} onChange={() => handleToggleMatrizada(row.factura_id || 0, !!row.matrizada)} />
                                <span className="slider round"></span>
                              </label>
                           ) : row.matrizada ? (
@@ -507,7 +531,7 @@ export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit =
                               {flags.showAnular && (
                                 <button
                                   className="btn-anular"
-                                  onClick={() => setConfirmAnular({ facturaId: row.factura_id, numFactura: row.num_factura })}
+                                  onClick={() => setConfirmAnular({ facturaId: row.factura_id || 0, numFactura: row.num_factura || '' })}
                                 >
                                   <XCircle size={12} /> Anular
                                 </button>
@@ -515,7 +539,7 @@ export default function HistoricoFacturacion({ onRefreshKpis, isAdmin, canEdit =
                               {isAdmin && flags.showDelete && (
                                 <button
                                   className="btn btn-danger btn-sm btn-icon"
-                                  onClick={() => handleEliminar(row.factura_id, row.num_factura)}
+                                  onClick={() => handleEliminar(row.factura_id || 0, row.num_factura || '')}
                                   disabled={eliminando === row.factura_id}
                                   title="Eliminar Factura Permanentemente"
                                 >

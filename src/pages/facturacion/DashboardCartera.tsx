@@ -112,7 +112,7 @@ export default function DashboardCartera() {
 
   /* ── Upload UI ── */
   const carteraInputRef = useRef<HTMLInputElement>(null);
-  const [carteraFile, setCarteraFile] = useState<{ name: string; rows: any[] } | null>(null);
+  const [carteraFile, setCarteraFile] = useState<{ name: string; rows: Record<string, unknown>[] } | null>(null);
   const [showUploadPanel, setShowUploadPanel] = useState(false);
 
   /* ── Filters ── */
@@ -142,25 +142,25 @@ export default function DashboardCartera() {
       if (clErr) throw clErr;
 
       if (carteraRows && carteraRows.length > 0 && clienteRows) {
-        const parsedCartera: CarteraRow[] = carteraRows.map((r: any) => ({
-          cliente: r.cliente,
-          factura: r.factura || 0,
-          importe: r.importe || 0,
-          demora: r.demora_vencimiento || 0,
-          vencimiento: r.vencimiento_neto || '',
-          texto: r.texto || '',
-          fechaDoc: r.fecha_documento || '',
-          claseDoc: r.clase_documento || '',
+        const parsedCartera: CarteraRow[] = carteraRows.map((r: Record<string, unknown>) => ({
+          cliente: r.cliente as number,
+          factura: (r.factura as number) || 0,
+          importe: (r.importe as number) || 0,
+          demora: (r.demora_vencimiento as number) || 0,
+          vencimiento: (r.vencimiento_neto as string) || '',
+          texto: (r.texto as string) || '',
+          fechaDoc: (r.fecha_documento as string) || '',
+          claseDoc: (r.clase_documento as string) || '',
         }));
 
         // Build cupo data from maestro_clientes
-        const parsedCupo: CupoRow[] = clienteRows.map((r: any) => ({
-          deudor: r.codigo_sap,
-          nombre: r.nombre || '',
+        const parsedCupo: CupoRow[] = clienteRows.map((r: Record<string, unknown>) => ({
+          deudor: r.codigo_sap as number,
+          nombre: (r.nombre as string) || '',
           limiteCredito: Number(r.limite_credito) || 0,
           limiteTotal: Number(r.limite_credito) || 0,
-          tipoPago: r.tipo_pago || 'CONTADO',
-          poblacion: r.poblacion || '',
+          tipoPago: (r.tipo_pago as string) || 'CONTADO',
+          poblacion: (r.poblacion as string) || '',
         }));
 
         setCarteraData(parsedCartera);
@@ -168,13 +168,13 @@ export default function DashboardCartera() {
         setDataLoaded(true);
 
         // Get the most recent timestamp
-        const latest = carteraRows.reduce((max: string, r: any) =>
-          r.created_at > max ? r.created_at : max, '');
+        const latest = carteraRows.reduce((max: string, r: Record<string, unknown>) =>
+          r.created_at && String(r.created_at) > max ? String(r.created_at) : max, '');
         if (latest) setLastUpdate(new Date(latest).toLocaleString('es-CO'));
       } else {
         setDataLoaded(false);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error loading cartera from DB:', err);
       setDataLoaded(false);
     }
@@ -190,11 +190,11 @@ export default function DashboardCartera() {
       try {
         const wb = XLSX.read(e.target?.result, { type: 'array' });
         const sheet = wb.Sheets[wb.SheetNames[0]];
-        const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+        const rows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
         setCarteraFile({ name: file.name, rows });
         toast.success(`Archivo leído: ${rows.length} registros de cartera`);
-      } catch (err: any) {
-        toast.error('Error al leer el archivo: ' + err.message);
+      } catch (err: unknown) {
+        toast.error('Error al leer el archivo: ' + (err as Error).message);
       }
     };
     reader.readAsArrayBuffer(file);
@@ -242,8 +242,8 @@ export default function DashboardCartera() {
       setCarteraFile(null);
       setShowUploadPanel(false);
       await loadFromDatabase();
-    } catch (err: any) {
-      toast.error('Error al actualizar la base de datos: ' + err.message);
+    } catch (err: unknown) {
+      toast.error('Error al actualizar la base de datos: ' + (err as Error).message);
     }
     setUploading(false);
   }, [carteraFile, loadFromDatabase]);
@@ -408,16 +408,18 @@ export default function DashboardCartera() {
   }
 
   /* ── Chart click handlers (interactive filters) ── */
-  const handleAgeBarClick = (data: any) => {
-    if (data && data.activePayload?.[0]) {
-      const clicked = data.activePayload[0].payload;
+  const handleAgeBarClick = (data: unknown) => {
+    const d = data as { activePayload?: { payload: { key: AgeFilter } }[] };
+    if (d && d.activePayload?.[0]) {
+      const clicked = d.activePayload[0].payload;
       setFilterAge(prev => prev === clicked.key ? 'all' : clicked.key);
     }
   };
 
-  const handleClienteBarClick = (data: any) => {
-    if (data && data.activePayload?.[0]) {
-      const clicked = data.activePayload[0].payload;
+  const handleClienteBarClick = (data: unknown) => {
+    const d = data as { activePayload?: { payload: { fullName: string } }[] };
+    if (d && d.activePayload?.[0]) {
+      const clicked = d.activePayload[0].payload;
       setSearchTerm(prev => prev === clicked.fullName ? '' : clicked.fullName);
     }
   };
@@ -699,7 +701,7 @@ export default function DashboardCartera() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
               <XAxis type="number" fontSize={11} stroke="#94a3b8" tickFormatter={v => fmtMoneyShort(v)} />
               <YAxis type="category" dataKey="name" fontSize={11} stroke="#94a3b8" width={100} />
-              <Tooltip contentStyle={tooltipStyle} formatter={(val: any) => fmtMoney(Number(val))} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(val: unknown) => fmtMoney(Number(val))} />
               <Bar dataKey="value" name="Cartera" radius={[0, 6, 6, 0]}>
                 {ageData.map((entry, i) => (
                   <Cell key={i} fill={entry.color} opacity={filterAge === 'all' || filterAge === entry.key ? 1 : 0.3}
@@ -720,7 +722,7 @@ export default function DashboardCartera() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
               <XAxis dataKey="name" fontSize={11} stroke="#94a3b8" />
               <YAxis fontSize={11} stroke="#94a3b8" allowDecimals={false} />
-              <Tooltip contentStyle={tooltipStyle} formatter={(val: any) => [`${val} clientes`, 'Cantidad']} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(val: unknown) => [`${val} clientes`, 'Cantidad']} />
               <Bar dataKey="count" name="Clientes" radius={[6, 6, 0, 0]}>
                 {usoCupoData.map((entry, i) => (
                   <Cell key={i} fill={entry.color} />
@@ -751,7 +753,7 @@ export default function DashboardCartera() {
               <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
               <XAxis type="number" fontSize={11} stroke="#94a3b8" tickFormatter={v => fmtMoneyShort(v)} />
               <YAxis type="category" dataKey="name" fontSize={10} stroke="#94a3b8" width={200} />
-              <Tooltip contentStyle={tooltipStyle} formatter={(val: any, name: any) => [fmtMoney(Number(val)), name]} />
+              <Tooltip contentStyle={tooltipStyle} formatter={(val: unknown, name: unknown) => [fmtMoney(Number(val)), String(name)]} />
               <Bar dataKey="sinVencer" name="Sin Vencer" stackId="a" fill="url(#deudaGradOk)" radius={[0, 0, 0, 0]} />
               <Bar dataKey="vencido" name="Vencido" stackId="a" fill="url(#deudaGradVenc)" radius={[0, 6, 6, 0]} />
             </BarChart>
@@ -858,7 +860,7 @@ export default function DashboardCartera() {
 }
 
 /* ── Helper: Excel serial dates → string ── */
-function excelDateToStr(val: any): string {
+function excelDateToStr(val: unknown): string {
   if (!val) return '';
   if (typeof val === 'number') {
     const d = new Date((val - 25569) * 86400000);

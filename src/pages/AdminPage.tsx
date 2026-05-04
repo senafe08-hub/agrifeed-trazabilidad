@@ -42,9 +42,27 @@ export default function AdminPage() {
 
   if (!canView) return <Navigate to="/" replace />;
 
+  interface UserRow {
+    id?: number;
+    email?: string;
+    nombre?: string;
+    rol?: string;
+    activo?: boolean;
+    ultimo_acceso?: string;
+    password?: string;
+    confirmPassword?: string;
+  }
+  interface AuditRow {
+    created_at: string;
+    usuario: string;
+    accion: string;
+    modulo: string;
+    detalle: string;
+  }
+
   // Users State
   const [users, setUsers] = useState(demoUsers);
-  const [auditLog, setAuditLog] = useState<any[]>([]);
+  const [auditLog, setAuditLog] = useState<AuditRow[]>([]);
 
   useEffect(() => {
     if (activeTab === 'auditoria') {
@@ -61,7 +79,7 @@ export default function AdminPage() {
   // Modal State for Create/Edit User
   const [showUserForm, setShowUserForm] = useState(false);
   const [formMode, setFormMode] = useState<'crear' | 'editar'>('crear');
-  const [userFormData, setUserFormData] = useState<any>({});
+  const [userFormData, setUserFormData] = useState<UserRow>({});
 
   // Modal State for Password Reset
   const [showPasswordReset, setShowPasswordReset] = useState(false);
@@ -74,7 +92,7 @@ export default function AdminPage() {
     setShowUserForm(true);
   };
 
-  const handleOpenEditUser = (user: any) => {
+  const handleOpenEditUser = (user: UserRow) => {
     setFormMode('editar');
     setUserFormData({ ...user });
     setShowUserForm(true);
@@ -89,9 +107,9 @@ export default function AdminPage() {
       }
       const newUser = {
         id: Date.now(),
-        nombre: userFormData.nombre,
-        email: userFormData.email,
-        rol: userFormData.rol,
+        nombre: userFormData.nombre || '',
+        email: userFormData.email || '',
+        rol: userFormData.rol || '',
         activo: true,
         ultimo_acceso: '-',
         password: userFormData.password || 'Secreta'
@@ -99,7 +117,7 @@ export default function AdminPage() {
       setUsers([newUser, ...users]);
       alert("Usuario creado de manera local (simulado). En el futuro se guardará en Supabase Auth.");
     } else {
-      setUsers(users.map(u => u.id === userFormData.id ? { ...u, nombre: userFormData.nombre, email: userFormData.email, rol: userFormData.rol } : u));
+      setUsers(users.map(u => u.id === userFormData.id ? { ...u, nombre: userFormData.nombre || '', email: userFormData.email || '', rol: userFormData.rol || '' } : u));
     }
     setShowUserForm(false);
   };

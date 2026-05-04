@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Plus, Trash2, Save, ChevronLeft, ChevronRight } from 'lucide-react';
 import { createSolicitud } from '../lib/api/ventas';
-import { getISOWeek, setISOWeek, startOfISOWeek, addDays, format, setWeekYear } from 'date-fns';
+import { getISOWeek, getISOWeeksInYear, setISOWeek, startOfISOWeek, addDays, format, setWeekYear } from 'date-fns';
 import type { CasaFormuladora } from '../lib/api/ventas';
 
 const DIAS_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
@@ -33,8 +33,8 @@ function getSemanaActual() {
 interface Props {
   semana: number;
   anio: number;
-  clientes: any[];
-  alimentos: any[];
+  clientes: { codigo_sap: number | string; nombre: string }[];
+  alimentos: { codigo_sap: number | string; descripcion: string }[];
   casas: CasaFormuladora[];
   onSaved: () => void;
   onCancel: () => void;
@@ -50,8 +50,9 @@ export default function SolicitudGridForm({ semana, anio, clientes, alimentos, c
 
   function cambiarSemana(delta: number) {
     let s = semana + delta, a = anio;
-    if (s < 1) { s = 52; a--; }
-    if (s > 52) { s = 1; a++; }
+    const maxWeeks = getISOWeeksInYear(new Date(a, 0, 4));
+    if (s < 1) { s = getISOWeeksInYear(new Date(a - 1, 0, 4)); a--; }
+    if (s > maxWeeks) { s = 1; a++; }
     onChangeSemana(s, a);
   }
 
@@ -67,8 +68,8 @@ export default function SolicitudGridForm({ semana, anio, clientes, alimentos, c
   function updateRef(idx: number, text: string) {
     const nr = [...rows];
     // Try to match typed text to an alimento
-    const match = alimentos.find((a: any) => a.descripcion === text);
-    nr[idx] = { ...nr[idx], refText: text, codigo_sap: match ? match.codigo_sap : '' };
+    const match = alimentos.find((a: { codigo_sap: number | string; descripcion: string }) => a.descripcion === text);
+    nr[idx] = { ...nr[idx], refText: text, codigo_sap: match ? Number(match.codigo_sap) : '' };
     setRows(nr);
   }
 
@@ -114,7 +115,7 @@ export default function SolicitudGridForm({ semana, anio, clientes, alimentos, c
       for (const item of items) await createSolicitud(item);
       alert(`${items.length} registros guardados correctamente.`);
       onSaved();
-    } catch (err: any) { alert('Error: ' + err.message); }
+    } catch (err: unknown) { alert('Error: ' + (err as Error).message); }
     setSaving(false);
   }
 
@@ -190,8 +191,8 @@ export default function SolicitudGridForm({ semana, anio, clientes, alimentos, c
                             boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', maxHeight: 200, overflowY: 'auto'
                           }}>
                             {alimentos
-                              .filter((a: any) => a.descripcion.toLowerCase().includes(row.refText.toLowerCase()))
-                              .map((a: any) => (
+                              .filter((a: { codigo_sap: number | string; descripcion: string }) => a.descripcion.toLowerCase().includes(row.refText.toLowerCase()))
+                              .map((a: { codigo_sap: number | string; descripcion: string }) => (
                                 <div key={a.codigo_sap} 
                                      style={{ padding: '8px 12px', fontSize: '0.8rem', cursor: 'pointer', borderBottom: '1px solid #f1f5f9' }}
                                      onMouseDown={() => {
@@ -204,7 +205,7 @@ export default function SolicitudGridForm({ semana, anio, clientes, alimentos, c
                                   {a.descripcion}
                                 </div>
                               ))}
-                            {alimentos.filter((a: any) => a.descripcion.toLowerCase().includes(row.refText.toLowerCase())).length === 0 && (
+                            {alimentos.filter((a: { codigo_sap: number | string; descripcion: string }) => a.descripcion.toLowerCase().includes(row.refText.toLowerCase())).length === 0 && (
                               <div style={{ padding: '8px 12px', fontSize: '0.8rem', color: '#64748b' }}>Sin resultados</div>
                             )}
                           </div>

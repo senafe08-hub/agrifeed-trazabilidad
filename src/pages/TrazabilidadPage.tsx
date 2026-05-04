@@ -27,7 +27,7 @@ function ProgressBar({ current, total, colorHex }: { current: number; total: num
   );
 }
 
-function StatusIcon({ bachesProg, bachesEnt, ent, desp, fact }: any) {
+function StatusIcon({ bachesProg, bachesEnt, ent, desp, fact }: { bachesProg: number | string; bachesEnt: number | string; ent: number | string; desp: number | string; fact: number | string }) {
   const bp = Number(bachesProg) || 0;
   const be = Number(bachesEnt) || 0;
   const e = Number(ent) || 0;
@@ -48,7 +48,22 @@ export default function TrazabilidadPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
   const [currentPage, setCurrentPage] = useState(1);
-  const [data, setData] = useState<any[]>([]);
+  interface TrazabilidadRow {
+    lote: number;
+    fecha: string;
+    alimento: string;
+    categoria: string;
+    cliente: string;
+    programado: number;
+    bachesProgramados: number;
+    entregado: number;
+    bachesEntregados: number;
+    despachado: number;
+    danados: number;
+    facturado: number;
+    estado: string;
+  }
+  const [data, setData] = useState<TrazabilidadRow[]>([]);
   const [loading, setLoading] = useState(false);
   
   if (!canView) return <Navigate to="/" replace />;
@@ -102,7 +117,7 @@ export default function TrazabilidadPage() {
       const facturadoMap = new Map<number, number>();
       if (detData) {
         for (const d of detData) {
-          if ((d.pedidos as any)?.estado === 'FACTURADO') {
+          if ((d.pedidos as unknown as Record<string, string>)?.estado === 'FACTURADO') {
             facturadoMap.set(d.op, (facturadoMap.get(d.op) || 0) + (d.bultos_pedido || 0));
           }
         }
@@ -126,9 +141,9 @@ export default function TrazabilidadPage() {
           }
           const facturado = facturadoMap.get(item.lote) || 0;
 
-          const alimento = (item.maestro_alimentos as any)?.descripcion || 'Sin Alimento';
-          const categoria = (item.maestro_alimentos as any)?.categoria || '';
-          const cliente = (item.maestro_clientes as any)?.nombre || 'Sin Cliente';
+          const alimento = (item.maestro_alimentos as unknown as Record<string, string>)?.descripcion || 'Sin Alimento';
+          const categoria = (item.maestro_alimentos as unknown as Record<string, string>)?.categoria || '';
+          const cliente = (item.maestro_clientes as unknown as Record<string, string>)?.nombre || 'Sin Cliente';
 
           let estado = 'Incompleto';
           if (bachesProgramados > 0 && bachesEntregados >= bachesProgramados && entregado > 0 && despachado >= entregado && facturado >= despachado) {
@@ -155,8 +170,8 @@ export default function TrazabilidadPage() {
         });
         setData(processed);
       }
-    } catch(err: any){
-      toast.error('Error cargando trazabilidad: ' + err.message);
+    } catch(err: unknown){
+      toast.error('Error cargando trazabilidad: ' + (err as Error).message);
     }
     setLoading(false);
   };
@@ -188,7 +203,7 @@ export default function TrazabilidadPage() {
       for (const key of Object.keys(columnFilters)) {
         const fv = columnFilters[key];
         if (!fv) continue;
-        const val = String((item as any)[key] ?? '').toLowerCase();
+        const val = String((item as unknown as Record<string, unknown>)[key] ?? '').toLowerCase();
         if (key === 'estado') {
           if (!val.startsWith(fv.toLowerCase()) && val !== fv.toLowerCase()) return false;
         } else {
@@ -234,10 +249,10 @@ export default function TrazabilidadPage() {
     XLSX.utils.book_append_sheet(wb, ws, 'TRAZABILIDAD');
     try {
       if ('showSaveFilePicker' in window) {
-        (window as any).showSaveFilePicker({
+        (window as unknown as { showSaveFilePicker: (o: unknown) => Promise<{ createWritable: () => Promise<{ write: (data: unknown) => Promise<void>, close: () => Promise<void> }> }> }).showSaveFilePicker({
           suggestedName: `Trazabilidad_Agrifeed_${new Date().toISOString().split('T')[0]}.xlsx`,
           types: [{ description: 'Excel', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }],
-        }).then(async (handle: any) => {
+        }).then(async (handle: { createWritable: () => Promise<{ write: (data: unknown) => Promise<void>, close: () => Promise<void> }> }) => {
           const writable = await handle.createWritable();
           await writable.write(XLSX.write(wb, { bookType: 'xlsx', type: 'array' }));
           await writable.close();
@@ -247,8 +262,8 @@ export default function TrazabilidadPage() {
         XLSX.writeFile(wb, `Trazabilidad_Agrifeed_${new Date().toISOString().split('T')[0]}.xlsx`);
         toast.success('Reporte exportado exitosamente.');
       }
-    } catch(err:any){
-      if (err.name !== 'AbortError') toast.error('Error al exportar: ' + err.message);
+    } catch(err: unknown){
+      if ((err as Error).name !== 'AbortError') toast.error('Error al exportar: ' + (err as Error).message);
     }
   };
 

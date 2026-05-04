@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Plus, Search, Edit2, Trash2, Download, Upload, ChevronLeft, ChevronRight, Calendar, FlaskConical, Link2, Zap, FileText, Factory } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import { usePermissions } from '../lib/permissions';
+import { useMaestrosStore } from '../store/maestrosStore';
 import supabase from '../lib/supabase';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
@@ -16,9 +17,25 @@ export default function ProgramacionPage() {
   const { canEdit: canEditFormulas } = usePermissions('formulacion');
   const [mainTab, setMainTab] = useState<'propuestas' | 'programacion' | 'catalogo' | 'asociar' | 'explosion'>('propuestas');
 
+  interface ExtendedProgramacionRow {
+    id: number;
+    fecha: string;
+    lote: number;
+    codigo_sap: number;
+    bultos_programados: number;
+    num_baches: number;
+    cliente_id: number;
+    observaciones?: string | null;
+    alimento_nombre: string;
+    cliente_nombre: string;
+    alimento?: string;
+    maestro_alimentos?: { descripcion: string };
+    maestro_clientes?: { nombre: string };
+  }
+
   const [searchTerm, setSearchTerm] = useState('');
   const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
-  const [data, setData] = useState<any[]>([]);
+  const [data, setData] = useState<ExtendedProgramacionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -33,7 +50,7 @@ export default function ProgramacionPage() {
   const [showForm, setShowForm] = useState(false);
   const [formMode, setFormMode] = useState<'crear' | 'editar'>('crear');
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState<any>({});
+  const [formData, setFormData] = useState<Record<string, unknown>>({});
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
 
@@ -42,16 +59,14 @@ export default function ProgramacionPage() {
   const [importResult, setImportResult] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Maestros state for dropdowns
-  const [alimentos, setAlimentos] = useState<any[]>([]);
-  const [clientes, setClientes] = useState<any[]>([]);
+  const { alimentos, clientes, fetchData: fetchMaestrosStore } = useMaestrosStore();
 
   useEffect(() => {
     if (canView) {
       fetchData();
-      fetchMaestros();
+      fetchMaestrosStore();
     }
-  }, [canView]);
+  }, [canView, fetchMaestrosStore]);
 
   // Refresh production data when switching to the Registros tab
   useEffect(() => {
@@ -59,12 +74,7 @@ export default function ProgramacionPage() {
   }, [mainTab]);
   if (!canView) return <Navigate to="/" replace />;
 
-  const fetchMaestros = async () => {
-    const { data: a } = await supabase.from('maestro_alimentos').select('codigo_sap, descripcion').order('descripcion');
-    if (a) setAlimentos(a);
-    const { data: c } = await supabase.from('maestro_clientes').select('codigo_sap, nombre').order('nombre');
-    if (c) setClientes(c);
-  };
+
 
   const fetchData = async () => {
     setLoading(true);
@@ -75,10 +85,10 @@ export default function ProgramacionPage() {
       .limit(10000);
 
     if (!error && rawData) {
-      const processed = rawData.map(item => ({
+      const processed: ExtendedProgramacionRow[] = rawData.map(item => ({
         ...item,
-        alimento_nombre: item.maestro_alimentos ? (item.maestro_alimentos as any).descripcion : item.alimento || 'Sin Alimento',
-        cliente_nombre: item.maestro_clientes ? (item.maestro_clientes as any).nombre : '—',
+        alimento_nombre: item.maestro_alimentos ? (item.maestro_alimentos as { descripcion: string }).descripcion : item.alimento || 'Sin Alimento',
+        cliente_nombre: item.maestro_clientes ? (item.maestro_clientes as { nombre: string }).nombre : '—',
       }));
       setData(processed);
     }
@@ -86,7 +96,7 @@ export default function ProgramacionPage() {
   };
 
   // ── CRUD ──
-  const handleOpenForm = useCallback((item?: any) => {
+  const handleOpenForm = useCallback((item?: ExtendedProgramacionRow) => {
     if (!canEdit) return;
     if (item) {
       setFormMode('editar');
@@ -112,10 +122,10 @@ export default function ProgramacionPage() {
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
-    let val: any = value;
+    let val: string | number | null = value;
     if (type === 'number') val = value ? Number(value) : null;
     if (value === '') val = null;
-    setFormData((prev: any) => ({ ...prev, [name]: val }));
+    setFormData((prev: Record<string, unknown>) => ({ ...prev, [name]: val }));
   }, []);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -132,8 +142,8 @@ export default function ProgramacionPage() {
       }
       handleCloseForm();
       fetchData();
-    } catch (err: any) {
-      alert(`Error al guardar: ${err.message}`);
+    } catch (err: unknown) {
+      alert(`Error al guardar: ${(err as Error).message}`);
     } finally {
       setSaving(false);
     }
@@ -171,7 +181,7 @@ export default function ProgramacionPage() {
       for (const key of Object.keys(columnFilters)) {
         const fv = columnFilters[key];
         if (!fv) continue;
-        const val = String(item[key] || '').toLowerCase();
+        const val = String((item as unknown as Record<string, unknown>)[key] || '').toLowerCase();
         if (!val.includes(fv.toLowerCase())) return false;
       }
       return true;
@@ -185,7 +195,7 @@ export default function ProgramacionPage() {
     for (const col of cols) {
       const set = new Set<string>();
       for (let i = 0; i < data.length; i++) {
-        const v = data[i][col];
+        const v = (data[i] as unknown as Record<string, unknown>)[col];
         if (v != null && v !== '') set.add(String(v));
       }
       result[col] = Array.from(set);
@@ -241,7 +251,8 @@ export default function ProgramacionPage() {
 
     try {
       if ('showSaveFilePicker' in window) {
-        const handle = await (window as any).showSaveFilePicker({
+        const win = window as unknown as { showSaveFilePicker: (options: unknown) => Promise<{ createWritable: () => Promise<{ write: (data: unknown) => Promise<void>; close: () => Promise<void> }> }> };
+        const handle = await win.showSaveFilePicker({
           suggestedName: `Programacion_${new Date().toISOString().split('T')[0]}.xlsx`,
           types: [{ description: 'Excel Document', accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] } }]
         });
@@ -251,8 +262,8 @@ export default function ProgramacionPage() {
       } else {
         XLSX.writeFile(wb, `Programacion_${new Date().toISOString().split('T')[0]}.xlsx`);
       }
-    } catch (e: any) {
-      if (e.name !== 'AbortError') { alert("Error al exportar Excel: " + e.message); }
+    } catch (e: unknown) {
+      if ((e as Error).name !== 'AbortError') { alert("Error al exportar Excel: " + (e as Error).message); }
     }
   };
 
@@ -289,7 +300,7 @@ export default function ProgramacionPage() {
         r.num_baches || '0', 
         r.cliente_nombre || '-', 
         r.observaciones || '-'
-      ]);
+      ] as import('jspdf-autotable').RowInput);
 
       autoTable(doc, {
         startY: 35,
@@ -307,11 +318,11 @@ export default function ProgramacionPage() {
           5: { cellWidth: 60 }
         },
         alternateRowStyles: { fillColor: [250, 250, 250] },
-        didDrawPage: (data: any) => {
+        didDrawPage: (data: { settings: { margin: { left: number } } }) => {
           doc.setFontSize(8);
           doc.setTextColor(120, 120, 120);
           doc.text(
-            `Página ${(doc.internal as any).getNumberOfPages()}`,
+            `Página ${(doc.internal as unknown as { getNumberOfPages: () => number }).getNumberOfPages()}`,
             data.settings.margin.left,
             doc.internal.pageSize.height - 8
           );
@@ -322,7 +333,8 @@ export default function ProgramacionPage() {
 
       try {
         if ('showSaveFilePicker' in window) {
-          const handle = await (window as any).showSaveFilePicker({
+          const win = window as unknown as { showSaveFilePicker: (options: unknown) => Promise<{ createWritable: () => Promise<{ write: (data: unknown) => Promise<void>; close: () => Promise<void> }> }> };
+          const handle = await win.showSaveFilePicker({
             suggestedName: `Programa_Produccion_${new Date().toISOString().split('T')[0]}.pdf`,
             types: [{ description: 'PDF Document', accept: { 'application/pdf': ['.pdf'] } }]
           });
@@ -332,8 +344,8 @@ export default function ProgramacionPage() {
         } else {
           doc.save(`Programa_Produccion_${new Date().toISOString().split('T')[0]}.pdf`);
         }
-      } catch (e: any) {
-        if (e.name !== 'AbortError') { alert("Error al exportar PDF: " + e.message); }
+      } catch (e: unknown) {
+        if ((e as Error).name !== 'AbortError') { alert("Error al exportar PDF: " + (e as Error).message); }
       }
     };
 
@@ -360,7 +372,7 @@ export default function ProgramacionPage() {
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: 'array' });
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rawRows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      const rawRows: Record<string, unknown>[] = XLSX.utils.sheet_to_json(sheet, { defval: '' });
 
       if (rawRows.length === 0) throw new Error("El archivo está vacío.");
 
@@ -387,7 +399,7 @@ export default function ProgramacionPage() {
         return null;
       };
 
-      const mapRow = (row: any) => {
+      const mapRow = (row: Record<string, unknown>) => {
         const keys = Object.keys(row);
         const find = (patterns: string[]) => {
           const key = keys.find(k => patterns.some(p => k.toUpperCase().includes(p)));
@@ -427,8 +439,8 @@ export default function ProgramacionPage() {
 
       setImportResult(`✅ Importación completa: ${inserted} nuevos, ${skipped} ya existían, ${errors} errores.`);
       fetchData();
-    } catch (err: any) {
-      setImportResult(`❌ Error: ${err.message}`);
+    } catch (err: unknown) {
+      setImportResult(`❌ Error: ${(err as Error).message}`);
     } finally {
       setImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -446,7 +458,7 @@ export default function ProgramacionPage() {
           { key: 'asociar', label: 'Asociar OP ↔ Fórmula', icon: Link2 },
           { key: 'explosion', label: 'Explosión Traslado', icon: Zap },
         ].map(t => (
-          <button key={t.key} onClick={() => setMainTab(t.key as any)}
+          <button key={t.key} onClick={() => setMainTab(t.key as 'propuestas' | 'programacion' | 'catalogo' | 'asociar' | 'explosion')}
             style={{
               padding: '10px 20px', display: 'flex', alignItems: 'center', gap: 8,
               border: 'none', cursor: 'pointer', fontSize: '0.9rem', fontWeight: 600,
@@ -558,34 +570,34 @@ export default function ProgramacionPage() {
               <div className="grid-3">
                 <div className="form-group">
                   <label className="form-label">Fecha</label>
-                  <input type="date" name="fecha" className="form-input" required value={formData.fecha || ''} onChange={handleInputChange} />
+                  <input type="date" name="fecha" className="form-input" required value={(formData.fecha as string) || ''} onChange={handleInputChange} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Lote (OP)</label>
-                  <input type="number" name="lote" className="form-input" required value={formData.lote || ''} onChange={handleInputChange} />
+                  <input type="number" name="lote" className="form-input" required value={(formData.lote as string | number) || ''} onChange={handleInputChange} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Alimento (Código SAP)</label>
-                  <select name="codigo_sap" className="form-select" required value={formData.codigo_sap || ''} onChange={handleInputChange}>
+                  <select name="codigo_sap" className="form-select" required value={(formData.codigo_sap as string | number) || ''} onChange={handleInputChange}>
                     <option value="">Seleccionar alimento...</option>
-                    {alimentos.map((a: any) => (
+                    {alimentos.map((a) => (
                       <option key={a.codigo_sap} value={a.codigo_sap}>{a.codigo_sap} - {a.descripcion}</option>
                     ))}
                   </select>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Bultos a Producir</label>
-                  <input type="number" name="bultos_programados" className="form-input" required value={formData.bultos_programados || ''} onChange={handleInputChange} />
+                  <input type="number" name="bultos_programados" className="form-input" required value={(formData.bultos_programados as string | number) || ''} onChange={handleInputChange} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Número de Baches</label>
-                  <input type="number" name="num_baches" className="form-input" value={formData.num_baches || ''} onChange={handleInputChange} />
+                  <input type="number" name="num_baches" className="form-input" value={(formData.num_baches as string | number) || ''} onChange={handleInputChange} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Cliente</label>
-                  <select name="cliente_id" className="form-select" value={formData.cliente_id || ''} onChange={handleInputChange}>
+                  <select name="cliente_id" className="form-select" value={(formData.cliente_id as string | number) || ''} onChange={handleInputChange}>
                     <option value="">Sin asignar</option>
-                    {clientes.map((c: any) => (
+                    {clientes.map((c) => (
                       <option key={c.codigo_sap} value={c.codigo_sap}>{c.nombre}</option>
                     ))}
                   </select>
@@ -593,7 +605,7 @@ export default function ProgramacionPage() {
               </div>
               <div className="form-group">
                 <label className="form-label">Observaciones</label>
-                <input type="text" name="observaciones" className="form-input" value={formData.observaciones || ''} onChange={handleInputChange} />
+                <input type="text" name="observaciones" className="form-input" value={(formData.observaciones as string) || ''} onChange={handleInputChange} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 16 }}>
                 <button type="submit" className="btn btn-primary" disabled={saving}>

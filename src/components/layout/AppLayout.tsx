@@ -1,4 +1,5 @@
 import { Outlet, useLocation } from 'react-router-dom';
+import { version as appVersion } from '../../../package.json';
 import Sidebar from './Sidebar';
 
 interface AppLayoutProps {
@@ -16,6 +17,7 @@ const pageTitles: Record<string, string> = {
   '/facturacion': 'Facturación',
   '/trazabilidad': 'Trazabilidad',
   '/admin': 'Administración',
+  '/ventas': 'Ventas',
 };
 
 export default function AppLayout({ userEmail, userRole, onLogout }: AppLayoutProps) {
@@ -30,7 +32,7 @@ export default function AppLayout({ userEmail, userRole, onLogout }: AppLayoutPr
           <h1 className="header-title">{title}</h1>
           <div className="header-actions">
             <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-              v0.1.0
+              v{appVersion}
             </span>
           </div>
         </header>
