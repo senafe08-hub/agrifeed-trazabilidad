@@ -18,9 +18,25 @@ const DetalleOPList: React.FC<DetalleOPListProps> = ({ clienteId }) => {
   const [programacion, setProgramacion] = useState<Record<string, unknown>[]>([]);
   const [acumulados, setAcumulados] = useState<Record<number, number>>({});
   const [produccionAcumulados, setProduccionAcumulados] = useState<Record<number, number>>({});
-  const [prestamosAcumulados, setPrestamosAcumulados] = useState<Record<number, number>>({});
+  const [prestamosAcumulados, setPrestamosAcumulados] = useState<Record<number, { total: number; destinos: Record<string, number> }>>({});
   const [opWarnings, setOpWarnings] = useState<Record<string, string>>({});
   const [prestamosPermitidos, setPrestamosPermitidos] = useState<Record<string, number>>({});
+  const [grupoDestino, setGrupoDestino] = useState<string>('');
+
+  useEffect(() => {
+    if (clienteId) {
+      import('../lib/api/ventas').then(api => {
+        api.ensureCaches().then(() => {
+          api.getClienteGrupoMap().then(map => {
+            const gd = (api.resolveGrupo(Number(clienteId), map) || '').split('|')[0].trim().toUpperCase();
+            setGrupoDestino(gd);
+          });
+        });
+      });
+    } else {
+      setGrupoDestino('');
+    }
+  }, [clienteId]);
 
   // Load OP data and accumulated dispatch data once
   useEffect(() => {
@@ -144,7 +160,8 @@ const DetalleOPList: React.FC<DetalleOPListProps> = ({ clienteId }) => {
         {fields.map((field, idx) => {
           const rowValues = detailsWatch?.[idx] || {};
           const currentOp = String(rowValues.op || '');
-          const lostToLoans = prestamosAcumulados[Number(currentOp)] || 0;
+          const prestamoInfo = prestamosAcumulados[Number(currentOp)] || { total: 0, destinos: {} };
+          const lostToLoans = prestamoInfo.total;
           const totalPhysical = Math.max(0, ((rowValues as any).cantidad_entregada || 0) - ((rowValues as any).cantidad_despachada_acumulada || 0));
           const fisicoMax = Math.max(0, totalPhysical - lostToLoans);
           
@@ -162,8 +179,22 @@ const DetalleOPList: React.FC<DetalleOPListProps> = ({ clienteId }) => {
             if (opNum === currentOpNum) return true; // Siempre mostrar la que ya está seleccionada en esta fila
             const entregada = produccionAcumulados[opNum] || 0;
             const despachada = acumulados[opNum] || 0;
-            const prestamos = prestamosAcumulados[opNum] || 0;
-            const fMax = Math.max(0, entregada - despachada - prestamos);
+            
+            const pInfo = prestamosAcumulados[opNum] || { total: 0, destinos: {} };
+            const prestamoTotal = pInfo.total;
+            
+            let prestamoAlClienteActual = 0;
+            if (grupoDestino) {
+              if (grupoDestino.startsWith('CERDOS VARIOS')) {
+                Object.keys(pInfo.destinos).forEach(k => {
+                   if (k.startsWith('CERDOS VARIOS')) prestamoAlClienteActual += pInfo.destinos[k];
+                });
+              } else {
+                prestamoAlClienteActual = pInfo.destinos[grupoDestino] || 0;
+              }
+            }
+
+            const fMax = Math.max(0, entregada - despachada - prestamoTotal + prestamoAlClienteActual);
             return fMax > 0;
           }).sort((a, b) => Number(b.op) - Number(a.op));
 

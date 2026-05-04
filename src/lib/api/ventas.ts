@@ -950,22 +950,28 @@ export async function getSaldoDisponiblePorOP(opLote: number | string): Promise<
   return totalProd - totalDesp - totalPrest - totalRep;
 }
 
-export async function fetchPrestamosAcumuladosPorOP(): Promise<Record<number, number>> {
-  const { data } = await supabase.from('prestamos_inventario').select('motivo, cantidad, cantidad_compensada').not('motivo', 'is', null);
-  const acum: Record<number, number> = {};
+export async function fetchPrestamosAcumuladosPorOP(): Promise<Record<number, { total: number; destinos: Record<string, number> }>> {
+  const { data } = await supabase.from('prestamos_inventario').select('motivo, cantidad, cantidad_compensada, grupo_destino').not('motivo', 'is', null);
+  const acum: Record<number, { total: number; destinos: Record<string, number> }> = {};
   for (const p of (data || [])) {
     if (!p.motivo) continue;
     
+    const gd = (p.grupo_destino || '').toUpperCase().trim();
     const sourceMatch = p.motivo.match(/tomado de OP (\d+)/);
     if (sourceMatch && sourceMatch[1]) {
       const op = parseInt(sourceMatch[1]);
-      acum[op] = (acum[op] || 0) + (p.cantidad || 0);
+      if (!acum[op]) acum[op] = { total: 0, destinos: {} };
+      acum[op].total += (p.cantidad || 0);
+      if (gd) {
+        acum[op].destinos[gd] = (acum[op].destinos[gd] || 0) + (p.cantidad || 0);
+      }
     }
     
     const compMatch = p.motivo.match(/Repuesto con OP (\d+)/);
     if (compMatch && compMatch[1]) {
       const op = parseInt(compMatch[1]);
-      acum[op] = (acum[op] || 0) + (p.cantidad_compensada || 0);
+      if (!acum[op]) acum[op] = { total: 0, destinos: {} };
+      acum[op].total += (p.cantidad_compensada || 0);
     }
   }
   return acum;

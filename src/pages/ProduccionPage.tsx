@@ -487,7 +487,7 @@ export default function ProduccionPage({ isAdmin = false }: { isAdmin?: boolean 
                     <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 16 }}>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label">Bultos de Reproceso</label>
-                        <input type="number" step="any" className={`form-input ${methods.formState.errors.bultos_reproceso ? 'border-red-500' : ''}`} placeholder="0" {...methods.register('bultos_reproceso', { valueAsNumber: true })} />
+                        <input type="number" step="any" className={`form-input ${methods.formState.errors.bultos_reproceso ? 'border-red-500' : ''}`} placeholder="0" {...methods.register('bultos_reproceso')} />
                         <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: 4, display: 'block' }}>Cantidad incluida en el total que no consume MP nueva.</small>
                       </div>
                       <div className="form-group" style={{ marginBottom: 0 }}>
